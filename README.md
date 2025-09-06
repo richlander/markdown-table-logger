@@ -321,3 +321,11 @@ This repository contains working examples of each schema applied to real dotnet 
 5. **Schema composition**: Multiple views of the same underlying data
 
 The goal isn't to replace existing output, but to provide purpose-built views that optimize for comprehension alongside accuracy.
+
+## Additional ideas to consider
+
+- **Schema Extensibility:** How might other tools or analyzers extend the views over the same source data?
+- **Incremental Builds:** How might these schemas handle incremental builds where only some projects are rebuilt? The lossy view provided by incremental views is a pre-existing problem.
+- **Error Context:** git patches teach us that preceding and following line can be useful. Might that same style of hint be useful for LLMs to avoid needing to consumer a larger part of a file?
+- **Performance Metrics:** Dedicated schemas for performance data: compile times, assembly sizes, dependency graphs.
+- **Streaming Considerations:** For large builds, it would be useful if these views were published in a streaming manner.
