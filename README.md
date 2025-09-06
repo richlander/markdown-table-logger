@@ -139,13 +139,24 @@ The "Message" column would be optional.
 
 ### Token Count Comparison
 
+**Success Case (4 projects, 0 errors):**
+
 | Format | Word Count | Token Efficiency |
 |--------|------------|-----------------|
-| Raw output (terminal logger OFF) | 1187 words | Baseline (worst) |
-| Raw output (terminal logger ON) | 586 words | **51% reduction** |
-| Diagnostic schema (MD) | 148 words | **87% reduction** |
-| Diagnostic schema (JSON) | 122 words | **90% reduction** |
-| Error type schema (MD) | 64 words | **95% reduction** |
+| Raw success output (terminal logger ON) | 45 words | Baseline |
+| Raw success output (terminal logger OFF) | 80 words | **78% worse** |
+| Project schema (MD) | 26 words | **42% reduction** |
+| Project schema (JSON) | 18 words | **60% reduction** |
+
+**Error Case (19 errors, 1 warning):**
+
+| Format | Word Count | Token Efficiency |
+|--------|------------|-----------------|
+| Raw output (terminal logger ON) | 586 words | Baseline |
+| Raw output (terminal logger OFF) | 1187 words | **102% worse** |
+| Diagnostic schema (MD) | 148 words | **75% reduction** |
+| Diagnostic schema (JSON) | 122 words | **79% reduction** |
+| Error type schema (MD) | 64 words | **89% reduction** |
 
 **Verification commands:**
 ```bash
@@ -154,6 +165,18 @@ $ wc -w dotnet-build-errors-tl-off.txt
 
 $ wc -w dotnet-build-errors.txt
 586 dotnet-build-errors.txt
+
+$ wc -w dotnet-build-success.txt
+45 dotnet-build-success.txt
+
+$ wc -w dotnet-build-success-tl-off.txt
+80 dotnet-build-success-tl-off.txt
+
+$ wc -w dotnet-build-success.md
+26 dotnet-build-success.md
+
+$ wc -w dotnet-build-success.json
+18 dotnet-build-success.json
 
 $ wc -w dotnet-build-errors.md
 148 dotnet-build-errors.md
@@ -254,7 +277,9 @@ $ jq 'group_by(.file) | map({file: .[0].file, errors: length}) | sort_by(-.error
 $ grep "CS1061" dotnet-build-errors.md | wc -l
 10
 
-$ grep "TableProcessorRegistry" dotnet-build-errors.md
+$ (head -2 dotnet-build-errors.md; grep "TableProcessorRegistry" dotnet-build-errors.md)
+| File | Line | Code |
+|------|------|------|
 | src/MarkdownTable.Documents/TableProcessorRegistry.cs | 50 | CS1061 |
 | src/MarkdownTable.Documents/TableProcessorRegistry.cs | 56 | CS1061 |
 | src/MarkdownTable.Documents/TableProcessorRegistry.cs | 62 | CS1061 |
