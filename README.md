@@ -14,9 +14,156 @@ The concept of views is an invitation for lossy information. That could mean tha
 
 The dotnet CLI should embrace markdown and JSON equally. We often think about JSON in terms of schemas but not markdown. That's solely a gap in industry imagination.
 
-## Current State vs. Structured Output
+## Proposed Schema-Based Views
 
-### Success Case: Clean but Limited
+The following views demonstrate a pure data and query approach to CLI output. Markdown could be the default console format with an additonal persisted file-based format and view being optional.
+
+### 1. Project Build Success Schema
+
+**Purpose:** Project health overview, CI/CD decisions  
+**Files:** [`dotnet-build-success.md`](dotnet-build-success.md) | [`dotnet-build-success.json`](dotnet-build-success.json)
+
+```markdown
+| Project | Errors |
+|---------|--------|
+| MarkdownTable.IO | 0 |
+| MarkdownTable.Documents | 19 |
+| ttt | 0 |
+```
+
+**JSON variant:**
+
+```json
+[
+  {"project": "MarkdownTable.IO", "errors": 0},
+  {"project": "MarkdownTable.Rendering", "errors": 0},
+  {"project": "MarkdownTable.Documents", "errors": 0},
+  {"project": "ttt", "errors": 0}
+]
+```
+
+### 2. Error Type Schema (Project-scoped)
+
+**Purpose:** Analysis, prioritization  
+**Files:** [`dotnet-build-errors-by-type-MarkdownTable.Documents.md`](dotnet-build-errors-by-type-MarkdownTable.Documents.md) | [`dotnet-build-errors-by-type-MarkdownTable.Documents.json`](dotnet-build-errors-by-type-MarkdownTable.Documents.json)
+
+The "Description" column would be optional.
+
+```markdown
+| Code | Count | Description |
+|------|-------|-------------|
+| CS1061 | 10 | Member does not exist |
+| CS0103 | 7 | Name does not exist in current context |
+| CS0246 | 2 | Type or namespace not found |
+```
+
+**JSON variant:**
+
+```json
+[
+  {"code": "CS1061", "count": 10, "description": "Member does not exist"},
+  {"code": "CS0103", "count": 7, "description": "Name does not exist in current context"},
+  {"code": "CS0246", "count": 2, "description": "Type or namespace not found"},
+  {"code": "CS1501", "count": 2, "description": "No overload takes N arguments"},
+  {"code": "CS1998", "count": 1, "description": "Async method lacks await operators"}
+]
+```
+
+### 3. Diagnostic Schema
+
+**Purpose:** Error-focused analysis, development workflow  
+**Files:** [`dotnet-build-errors.md`](dotnet-build-errors.md) | [`dotnet-build-errors.json`](dotnet-build-errors.json) | [`dotnet-build-errors-verbose.md`](dotnet-build-errors-verbose.md) | [`dotnet-build-errors-verbose.json`](dotnet-build-errors-verbose.json)
+
+The "Message" column would be optional.
+
+```markdown
+| File | Line | Code | Message |
+|------|------|------|---------|
+| src/MarkdownTable.Documents/FullWidthRendererConfiguration.cs | 24 | CS0103 | The name 'FullWidthBufferedProcessor' does not exist in the current context |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 50 | CS1061 | 'IProcessorInfo' does not contain a definition for 'IsStreaming' |
+```
+
+**JSON variant:**
+```json
+[
+  {"file": "src/MarkdownTable.Documents/FullWidthRendererConfiguration.cs", "line": 24, "code": "CS0103", "message": "The name 'FullWidthBufferedProcessor' does not exist in the current context"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 50, "code": "CS1061", "'IProcessorInfo' does not contain a definition for 'IsStreaming'"}
+]
+```
+
+### 4. Context-Aware Diagnostic Schema
+
+**Purpose:** Rich error context for LLMs, inspired by git patches  
+**Format:** JSON-only (too verbose for console display)
+
+This schema includes surrounding code context to help LLMs understand errors without needing to read entire files:
+
+```json
+{
+  "file": "Program.cs", 
+  "line": 99, 
+  "code": "CS1061", 
+  "message": "'Foo' does not contain a definition for 'Bar'",
+  "context": {
+    "before": [
+      {"line": 97, "text": "    public void ProcessData() {"},
+      {"line": 98, "text": "        var foo = new Foo();"}
+    ],
+    "error": {"line": 99, "text": "        var result = foo.Bar(); // Error here"},
+    "after": [
+      {"line": 100, "text": "        Console.WriteLine(result);"},
+      {"line": 101, "text": "    }"}
+    ]
+  }
+}
+```
+
+The number of lines could be controllable with an LLM-provided configuration map:
+
+```json
+{
+  "CS0103": {"before": 3, "after": 1},  // "Name does not exist" - need more preceding context
+  "CS1061": {"before": 2, "after": 2},  // "Member does not exist" - balanced context
+  "CS0029": {"before": 1, "after": 0},  // "Cannot implicitly convert" - just need the assignment
+  "CS1998": {"before": 5, "after": 5}   // "Async method lacks await" - need full method
+}
+```
+
+There could also be a way to request the whole method.
+
+**Benefits:**
+- **Contextual understanding**: LLMs can see variable declarations, method scope, and usage patterns
+- **Reduced file reads**: No need to fetch entire source files for error analysis
+- **Familiar pattern**: Git patch format is well-understood by developers and LLMs
+- **Configurable context**: Could support `--context-lines=N` similar to `git diff`
+
+**Why This Matters for LLMs:**
+
+**Single-Pass Analysis**: The LLM can immediately see the method signature (line 97), variable declaration (line 98), problematic call (line 99), and result usage (line 100). This is often enough to suggest: "Did you mean `foo.Baz()`?" or "You need to add a `Bar()` method to the `Foo` class."
+
+**Token Economics**:
+- Without context: ~30 tokens for error + ~50 tokens for tool call + ~100 tokens for file content = ~180 tokens
+- With context: ~80 tokens total, and it's done
+
+**Pattern Recognition**: LLMs excel at pattern matching. With context, they can immediately recognize:
+- Missing using statements (seeing the namespace context)
+- Typos in method names (seeing similar methods nearby)  
+- Incorrect parameter types (seeing the variable declarations)
+- Missing `await` keywords (seeing the async context)
+
+**The Transformation**: This approach acknowledges that errors have locality - most errors can be understood within a small context window. For AI-assisted development, this transforms the error correction loop from:
+
+> See error → Request context → Analyze → Suggest fix
+
+To:
+
+> See error with context → Suggest fix
+
+That's a 50% reduction in steps, which compounds across multiple errors. For a solution with 20 errors, you've just saved 20 tool calls and probably 2000+ tokens.
+
+## Current State
+
+### Success Case: Clean but arbitrary (proprietary)
 
 **Source:** [`dotnet-build-success.txt`](dotnet-build-success.txt)
 
@@ -41,7 +188,7 @@ This output is readable.
 - Non-standard demarcators
 - More token-heavy than needed; success should be very cheap
 
-### Failure Case: Comprehension Breakdown
+### Failure Case: Accurate but stretching comprehension
 
 **Source:** [`dotnet-build-errors.txt`](dotnet-build-errors.txt)
 
@@ -59,7 +206,7 @@ This output is readable.
 - Non-standard demarcators (for example, ':' is used more as "for more information" than a column)
 - Row/Column information require indexing on '(' and ')' characters.
 
-### The dual personality logger problem
+## The dual personality logger problem
 
 The "terminal logger" provides the default build output. It is new as of .NET 8 or 9. It is a _major_ improvement over what came before. Unfortuantely, it is not what most (all?) LLMs see today since terminal logger is execution state aware - if the command stdout is being redirected, or there is no tty allocated for the command, by default it will not activate.
 
@@ -81,59 +228,11 @@ You can see the difference in examples.
 ```
 
 **The terminal logger proves the hypothesis**: There can be a better balance between accuracy vs comprehension. The terminal logger OFF version is:
+
 - **2x more verbose** (1187 vs 586 words)
 - **Massively repetitive**: Every error duplicates full MSBuild paths and project references  
 - **Cognitively overwhelming**: No visual hierarchy or grouping
 - **Unparseable**: Inconsistent structure defeats automated analysis
-
-## Proposed Schema-Based Views
-
-### 1. Project Build Success Schema
-**Purpose:** Project health overview, CI/CD decisions  
-**Files:** [`dotnet-build-success.md`](dotnet-build-success.md) | [`dotnet-build-success.json`](dotnet-build-success.json)
-
-```markdown
-| Project | Errors |
-|---------|--------|
-| MarkdownTable.IO | 0 |
-| MarkdownTable.Documents | 19 |
-| ttt | 0 |
-```
-
-### 2. Error Type Schema (Project-scoped)
-**Purpose:** Pattern analysis, prioritization  
-**Files:** [`dotnet-build-errors-by-type-MarkdownTable.Documents.md`](dotnet-build-errors-by-type-MarkdownTable.Documents.md) | [`dotnet-build-errors-by-type-MarkdownTable.Documents.json`](dotnet-build-errors-by-type-MarkdownTable.Documents.json)
-
-The "Description" column would be optional.
-
-```markdown
-| Code | Count | Description |
-|------|-------|-------------|
-| CS1061 | 10 | Member does not exist |
-| CS0103 | 7 | Name does not exist in current context |
-| CS0246 | 2 | Type or namespace not found |
-```
-
-### 3. Diagnostic Schema
-**Purpose:** Error-focused analysis, development workflow  
-**Files:** [`dotnet-build-errors.md`](dotnet-build-errors.md) | [`dotnet-build-errors.json`](dotnet-build-errors.json) | [`dotnet-build-errors-verbose.md`](dotnet-build-errors-verbose.md) | [`dotnet-build-errors-verbose.json`](dotnet-build-errors-verbose.json)
-
-The "Message" column would be optional.
-
-```markdown
-| File | Line | Code | Message |
-|------|------|------|---------|
-| src/MarkdownTable.Documents/FullWidthRendererConfiguration.cs | 24 | CS0103 | The name 'FullWidthBufferedProcessor' does not exist in the current context |
-| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 50 | CS1061 | 'IProcessorInfo' does not contain a definition for 'IsStreaming' |
-```
-
-**JSON equivalent:**
-```json
-[
-  {"file": "src/MarkdownTable.Documents/FullWidthRendererConfiguration.cs", "line": 24, "code": "CS0103", "message": "The name 'FullWidthBufferedProcessor' does not exist in the current context"},
-  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 50, "code": "CS1061", "'IProcessorInfo' does not contain a definition for 'IsStreaming'"}
-]
-```
 
 ## Efficiency Analysis
 
@@ -292,7 +391,7 @@ $ (head -2 dotnet-build-errors.md; grep "TableProcessorRegistry" dotnet-build-er
 | src/MarkdownTable.Documents/TableProcessorRegistry.cs | 158 | CS1061 |
 ```
 
-**Key Insight**: Markdown enables quick pattern-matching without JSON parsing overhead, while JSON enables complex aggregations and transformations.
+**Key Insight**: Markdown enables quick pattern-matching without JSON parsing overhead, while JSON enables complex aggregations and transformations. The capability to produce multiple formats may make LLM-assisted development more collaborative where the markdown console format is displayed for humans while LLMs are able to slice and dice the persisted JSON format in obscure ways when more information is needed than the stdout table provides.
 
 ## Benefits
 
@@ -353,4 +452,4 @@ The goal isn't to replace existing output, but to provide purpose-built views th
 - **Incremental Builds:** How might these schemas handle incremental builds where only some projects are rebuilt? The lossy view provided by incremental views is a pre-existing problem.
 - **Error Context:** git patches teach us that preceding and following line can be useful. Might that same style of hint be useful for LLMs to avoid needing to consumer a larger part of a file?
 - **Performance Metrics:** Dedicated schemas for performance data: compile times, assembly sizes, dependency graphs.
-- **Streaming Considerations:** For large builds, it would be useful if these views were published in a streaming manner.
+- **Streaming Considerations:** For large builds, it would be useful if these views were published in a streaming manner. JSONL might be a solution.
