@@ -1,0 +1,9 @@
+rich@richs-MacBook-Pro smooth-markdown-table % dotnet build src/ttt/ttt.csproj 
+Restore complete (0.3s)
+    info NETSDK1057: You are using a preview version of .NET. See: https://aka.ms/dotnet-support-policy
+  MarkdownTable.IO succeeded (0.0s) → src/MarkdownTable.IO/bin/Debug/net10.0/MarkdownTable.IO.dll
+  MarkdownTable.Rendering succeeded (0.0s) → src/MarkdownTable.Rendering/bin/Debug/net10.0/MarkdownTable.Rendering.dll
+  MarkdownTable.Documents succeeded (0.1s) → src/MarkdownTable.Documents/bin/Debug/net10.0/MarkdownTable.Documents.dll
+  ttt succeeded (0.0s) → src/ttt/bin/Debug/net10.0/ttt.dll
+
+Build succeeded in 0.8s

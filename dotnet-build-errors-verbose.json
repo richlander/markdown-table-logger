@@ -1,0 +1,22 @@
+[
+  {"file": "src/MarkdownTable.Documents/FullWidthRendererConfiguration.cs", "line": 24, "code": "CS0103", "message": "The name 'FullWidthBufferedProcessor' does not exist in the current context"},
+  {"file": "src/MarkdownTable.Documents/IdentityRendererConfiguration.cs", "line": 23, "code": "CS0103", "message": "The name 'IdentityStreamingProcessor' does not exist in the current context"},
+  {"file": "src/MarkdownTable.Documents/CuteRendererConfiguration.cs", "line": 42, "code": "CS0246", "message": "The type or namespace name 'SmoothStreamingConfig' could not be found (are you missing a using directive or an assembly reference?)"},
+  {"file": "src/MarkdownTable.Documents/CuteRendererConfiguration.cs", "line": 50, "code": "CS0246", "message": "The type or namespace name 'SmoothStreamingProcessor' could not be found (are you missing a using directive or an assembly reference?)"},
+  {"file": "src/MarkdownTable.Documents/PrettyRendererConfiguration.cs", "line": 24, "code": "CS0103", "message": "The name 'PrettyRenderer' does not exist in the current context"},
+  {"file": "src/MarkdownTable.Documents/CuteParameterDescriptor.cs", "line": 27, "code": "CS0103", "message": "The name 'ParameterParsers' does not exist in the current context"},
+  {"file": "src/MarkdownTable.Documents/SmoothRendererConfiguration.cs", "line": 24, "code": "CS0103", "message": "The name 'SmoothMarkdownTable' does not exist in the current context"},
+  {"file": "src/MarkdownTable.Documents/StreamingDocumentOrchestrator.cs", "line": 66, "code": "CS1501", "message": "No overload for method 'ProcessDocumentAsync' takes 4 arguments"},
+  {"file": "src/MarkdownTable.Documents/StreamingDocumentOrchestrator.cs", "line": 98, "code": "CS1501", "message": "No overload for method 'ProcessDocumentAsync' takes 4 arguments"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 50, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsStreaming'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 56, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsBuffered'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 62, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsStreaming'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 68, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsBuffered'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 84, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsStreaming'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 98, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsBuffered'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 113, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsStreaming'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 123, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'IsBuffered'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 137, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'CreateProcessor'"},
+  {"file": "src/MarkdownTable.Documents/TableProcessorRegistry.cs", "line": 158, "code": "CS1061", "message": "'IProcessorInfo' does not contain a definition for 'CreateConfiguration'"},
+  {"file": "src/MarkdownTable.Documents/DocumentProcessing/StreamingDocumentProcessor.cs", "line": 189, "code": "CS1998", "message": "This async method lacks 'await' operators and will run synchronously"}
+]

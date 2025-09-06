@@ -1,0 +1,22 @@
+| File | Line | Code |
+|------|------|------|
+| src/MarkdownTable.Documents/FullWidthRendererConfiguration.cs | 24 | CS0103 |
+| src/MarkdownTable.Documents/IdentityRendererConfiguration.cs | 23 | CS0103 |
+| src/MarkdownTable.Documents/CuteRendererConfiguration.cs | 42 | CS0246 |
+| src/MarkdownTable.Documents/CuteRendererConfiguration.cs | 50 | CS0246 |
+| src/MarkdownTable.Documents/PrettyRendererConfiguration.cs | 24 | CS0103 |
+| src/MarkdownTable.Documents/CuteParameterDescriptor.cs | 27 | CS0103 |
+| src/MarkdownTable.Documents/SmoothRendererConfiguration.cs | 24 | CS0103 |
+| src/MarkdownTable.Documents/StreamingDocumentOrchestrator.cs | 66 | CS1501 |
+| src/MarkdownTable.Documents/StreamingDocumentOrchestrator.cs | 98 | CS1501 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 50 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 56 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 62 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 68 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 84 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 98 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 113 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 123 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 137 | CS1061 |
+| src/MarkdownTable.Documents/TableProcessorRegistry.cs | 158 | CS1061 |
+| src/MarkdownTable.Documents/DocumentProcessing/StreamingDocumentProcessor.cs | 189 | CS1998 |
