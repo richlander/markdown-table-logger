@@ -1,27 +1,29 @@
 # Improving CLI Output for Human and AI Comprehension
 
-We're now in the age of LLMs. It turns out that coding is the first "killer app" of this new technology paradigm. There is a significant opportunity to (re-)evolve build systems into queryable data systems. In a world of token limits, the dev platforms the consumes the least tokens is the one that enables LLMs to apply those token to the problem at hand and to write the best code (most or possibly least). This is the secret "hiding in plain sight". Build system output is likely the most significiant discretionary contributor to token exhaustion.
+We're now in the age of LLMs. It turns out that coding is the first "killer app" of this new technology paradigm, which suggests that "coding tools" should be adapted to work well with LLMs. There is a significant opportunity to (re-)evolve build systems into queryable data systems. In a world of token limits, the dev platforms that consume the least tokens will enable LLMs to apply those token to the problem at hand and to write the best code (most or possibly least). This is the secret "hiding in plain sight". Build system output is likely the most significiant discretionary contributor to token exhaustion.
 
 ## Hypothesis
 
-The dotnet CLI and other build systems produce verbose output biased toward accuracy rather than comprehension, particularly for "at a glance" workflows. This is very similar to considering signal vs noise. This tension creates problems for both humans and LLMs trying to quickly understand build results.
+The dotnet CLI and other build systems produce verbose output biased toward accuracy rather than comprehension, particularly for "at a glance" workflows. This is the same as Claude (Shannon, that is) considering signal vs noise. This tension creates problems for both humans and LLMs trying to quickly understand build results.
 
-The Docker CLI includes a "party trick" where Go format templates can reformat output, however, this approach is awkward for many users. Instead, multiple purpose-built user-selectable views in standard formats (with obvious column demarcators) would greatly aid all users.
+Many Go tools, including the Docker CLI includes a "party trick" where Go format templates can reformat output, however, this approach is awkward for many users. Instead, multiple purpose-built user-selectable views in standard formats (with obvious column demarcators) would greatly aid all users.
 
-These views can slice and dice the data, not unlike social media preview cards. JSON has commonly been used for this purpose. Although unconventional, markdown tables can be just as useful and often superior. Markdown can be thought of as web-native CSV. It shows up prominently in AI-assistant workflows and is immediately readable by humans. It can also be pretty-printed, as needed.
+These views can slice and dice the data, much like social media preview cards. JSON has commonly been used for this purpose, particularly aided by tools like `jq`. Although unconventional, markdown tables can be just as useful and often superior. Markdown can be thought of as web-native CSV. It is terse, a virtuous mix of presentational and structural, and widely used. In fact, it shows up prominently in AI-assistant workflows because it is immediately readable by humans. It can also be pretty-printed, as needed.
 
-The concept of views is an invitation for lossy information. That could mean that `dotnet build` needs to be called multiple times, either for multiple views or to process the same view multiple times (since stdout might be consumed by piping to `jq`). The `tee` tool can solve one of these problems by persisting the consumed console stream to disk. That's good, but inelegant. A better idea is that CLI would (A) enable writing the output to both stdout and to disk, and (B) writing different and possibly multiple selectable views to each. This approach could break the tie between comprehension and accuracy, by writing summary markdown to the console and more expansive JSON to disk, only used if the markdown output suggests a need.
+The concept of views is an invitation for lossy information. That could mean that `dotnet build` needs to be called multiple times, either for multiple views or to process the same view multiple times (since stdout might be consumed by piping to `jq`). The `tee` tool can solve one of these problems by persisting the consumed console stream to disk. That's good, but inelegant. A better idea is that CLI would (A) enable writing the output to both stdout and to disk, and (B) writing different and possibly multiple selectable views to each (possibly one per project). This approach could break any compromise between comprehension and accuracy, by writing summary markdown to the console and more expansive JSON to disk, only used if the markdown output suggests a need.
 
-This approach would tranform the dotnet CLI from a document generator to a data API. The dotnet CLI should embrace markdown and JSON equally. We often think about JSON in terms of schemas but not markdown. That's solely a gap in industry imagination.
+This approach would tranform the dotnet CLI from a document generator to a data API. The dotnet CLI should embrace markdown and JSON equally. We often think about JSON in terms of schemas but not markdown tables. That's solely a gap in industry imagination.
 
 ## Proposed Schema-Based Views
 
-Markdown _tables_ could be the default console format with an additonal persisted file-based format and view being optional.
+Markdown _tables_ could be the default console format with additonal persisted file-based formats and views being optional. In this paradigm, we could provide tools to help users explore the additional views or let them rely on off-the-shelf tools. An interesting idea would that the persisted files were always JSON and that it was possible to generate markdown table views from them with additional tooling.
 
 ### 1. Project Build Success Schema
 
 **Purpose:** Project health overview, CI/CD decisions  
 **Files:** [`dotnet-build-success.md`](dotnet-build-success.md) | [`dotnet-build-success.json`](dotnet-build-success.json)
+
+**Markdown**
 
 ```markdown
 | Project | Errors |
@@ -31,7 +33,7 @@ Markdown _tables_ could be the default console format with an additonal persiste
 | ttt | 0 |
 ```
 
-**JSON variant:**
+**JSON**
 
 ```json
 [
@@ -49,6 +51,8 @@ Markdown _tables_ could be the default console format with an additonal persiste
 
 The "Description" column would be optional.
 
+**Markdown**
+
 ```markdown
 | Code | Count | Description |
 |------|-------|-------------|
@@ -57,7 +61,7 @@ The "Description" column would be optional.
 | CS0246 | 2 | Type or namespace not found |
 ```
 
-**JSON variant:**
+**JSON**
 
 ```json
 [
@@ -76,6 +80,8 @@ The "Description" column would be optional.
 
 The "Message" column would be optional.
 
+**Markdown**
+
 ```markdown
 | File | Line | Code | Message |
 |------|------|------|---------|
@@ -83,7 +89,8 @@ The "Message" column would be optional.
 | src/MarkdownTable.Documents/TableProcessorRegistry.cs | 50 | CS1061 | 'IProcessorInfo' does not contain a definition for 'IsStreaming' |
 ```
 
-**JSON variant:**
+**JSON**
+
 ```json
 [
   {"file": "src/MarkdownTable.Documents/FullWidthRendererConfiguration.cs", "line": 24, "code": "CS0103", "message": "The name 'FullWidthBufferedProcessor' does not exist in the current context"},
@@ -94,7 +101,7 @@ The "Message" column would be optional.
 ### 4. Context-Aware Diagnostic Schema
 
 **Purpose:** Rich error context for LLMs, inspired by git patches  
-**Format:** JSON-only (too verbose for console display)
+**Format:** JSON-only (too verbose for markdown)
 
 This schema includes surrounding code context to help LLMs understand errors without needing to read entire files:
 
@@ -134,7 +141,7 @@ There could also be a way to request the whole method.
 **Benefits:**
 - **Contextual understanding**: LLMs can see variable declarations, method scope, and usage patterns
 - **Reduced file reads**: No need to fetch entire source files for error analysis
-- **Familiar pattern**: Git patch format is well-understood by developers and LLMs
+- **Familiar pattern**: Somewhat leaning towards a git patch/diff paradigm.
 - **Configurable context**: Could support `--context-lines=N` similar to `git diff`
 
 **Why This Matters for LLMs:**
@@ -142,16 +149,20 @@ There could also be a way to request the whole method.
 **Single-Pass Analysis**: The LLM can immediately see the method signature (line 97), variable declaration (line 98), problematic call (line 99), and result usage (line 100). This is often enough to suggest: "Did you mean `foo.Baz()`?" or "You need to add a `Bar()` method to the `Foo` class."
 
 **Token Economics**:
+
 - Without context: ~30 tokens for error + ~50 tokens for tool call + ~100 tokens for file content = ~180 tokens
 - With context: ~80 tokens total, and it's done
 
 **Pattern Recognition**: LLMs excel at pattern matching. With context, they can immediately recognize:
+
 - Missing using statements (seeing the namespace context)
 - Typos in method names (seeing similar methods nearby)  
 - Incorrect parameter types (seeing the variable declarations)
 - Missing `await` keywords (seeing the async context)
 
-**The Transformation**: This approach acknowledges that errors have locality - most errors can be understood within a small context window. For AI-assisted development, this transforms the error correction loop from:
+**The Transformation**: This approach acknowledges that errors have locality - most errors can be understood within a small context window.
+
+For AI-assisted development, this transforms the error correction loop from:
 
 > See error → Request context → Analyze → Suggest fix
 
@@ -208,7 +219,7 @@ This output is readable.
 
 ## The dual personality logger problem
 
-The "terminal logger" provides the default build output. It is new as of .NET 8 or 9. It is a _major_ improvement over what came before. Unfortuantely, it is not what most (all?) LLMs see today since terminal logger is execution state aware - if the command stdout is being redirected, or there is no tty allocated for the command, by default it will not activate.
+The "terminal logger" provides the default build output. It is new as of .NET 8 or 9. It is a _major_ improvement over what came before. Unfortuantely, it is not what most (all?) LLMs see today since terminal logger is execution state aware - if the stdout is being redirected, or there is no tty allocated for the command, it will not activate by default.
 
 You can see the difference in examples.
 
@@ -408,7 +419,7 @@ $ (head -2 dotnet-build-errors.md; grep "TableProcessorRegistry" dotnet-build-er
 - **Pre-computed views**: Common analyses done once, not per query
 - **Standard formats**: No custom parsing required
 - **Composable queries**: Chain jq operations for complex analysis
-- **Context-aware errors**: Eliminates need for additional file reads (see [Appendix A](#appendix-a-context-aware-diagnostics-deep-dive))
+- **Context-aware errors**: Eliminates need for additional file reads
 
 ### For Both
 - **Multiple perspectives**: Same data, different analytical lenses
@@ -440,14 +451,14 @@ This repository contains working examples of each schema applied to real dotnet 
 
 ## Key Design Decisions
 
-1. **Workspace-relative paths**: `src/ProjectName/File.cs` provides context without verbosity
+1. **Workspace-relative paths**: `src/ProjectName/File.cs` provides context without verbosity (and no paths to .NET SDK files)
 2. **Project-specific schemas**: Error analysis can be scoped to individual projects
 3. **Markdown = web-native CSV**: Leverages existing tooling and AI training data
 4. **Equal treatment**: JSON and markdown serve complementary use cases
 5. **Schema composition**: Multiple views of the same underlying data
 6. **Semantic context**: Leverage compiler's understanding of code structure for intelligent context inclusion
 
-The goal isn't to replace existing output, but to provide purpose-built views that optimize for comprehension alongside accuracy.
+The goal is to provide purpose-built views that optimize for comprehension alongside accuracy.
 
 ## Additional ideas to consider
 
@@ -461,433 +472,15 @@ The goal isn't to replace existing output, but to provide purpose-built views th
 
 ---
 
-## Appendix A: Context-Aware Diagnostics Deep Dive
+## Appendix: Diagnostic Wishlist - Unlocking Unix Workflows
 
-### The Problem: LLMs Need Context
+LLMs are two things at their core: language speakers and tool users. They are best utilized when they are spoken to in a language they undertand (like structured formats) and that enables follow-on tool use. This appendix explores what diagnostic information would unlock specific workflows.
 
-When an LLM encounters an error like `CS1061: 'Foo' does not contain a definition for 'Bar'`, it often needs to see surrounding code to suggest a fix. Currently, this requires additional tool calls:
-
-```bash
-# LLM sees error at line 99, needs context
-cat Program.cs | head -n 101 | tail -n 3
-```
-
-This approach has significant drawbacks:
-- **Additional tool call**: Latency + tokens for request/response
-- **Cognitive overhead**: LLM must craft correct commands
-- **Multiple iterations**: If context window wasn't quite right
-- **Full file access**: Even though only 3 lines are needed
-
-### The Solution: Pre-computed Context
-
-Instead of requiring file reads, include relevant context directly in the error output:
-
-```json
-{
-  "file": "Program.cs",
-  "line": 99,
-  "code": "CS1061",
-  "message": "'Foo' does not contain a definition for 'Bar'",
-  "context": {
-    "type": "statement",
-    "snippet": "var result = foo.Bar();",
-    "surrounding": [
-      {"line": 97, "text": "    public void ProcessData() {"},
-      {"line": 98, "text": "        var foo = new Foo();"},
-      {"line": 99, "text": "        var result = foo.Bar(); // Error here"},
-      {"line": 100, "text": "        Console.WriteLine(result);"},
-      {"line": 101, "text": "    }"}
-    ]
-  }
-}
-```
-
-### Token Economics
-
-The impact on token usage is dramatic:
-
-**Without context**:
-- ~30 tokens for error
-- ~50 tokens for tool call
-- ~100 tokens for file content
-- **Total: ~180 tokens**
-
-**With context**:
-- ~80 tokens total
-- **Savings: 56%**
-
-For a solution with 20 errors, this saves approximately 2000 tokens and 20 tool calls.
-
-### Semantic Context Types
-
-The C# compiler already understands code structure. Instead of arbitrary line counts, an LLM can request code content by error type on semantic boundaries:
-
-```json
-{
-  "contextRules": {
-    "method": ["CS1998", "CS0161", "CS1643"],      // Method-level errors
-    "class": ["CS0534", "CS0535", "CS0738"],       // Class-level errors
-    "expression": ["CS0029", "CS0266", "CS1503"],  // Expression-level errors
-    "statement": ["CS0165", "CS0103", "CS1061"],   // Statement-level errors
-    "file": ["CS0246", "CS0234"]                   // Missing using/namespace
-  }
-}
-```
-
-### Implementation Strategies
-
-#### Option 1: Simple String with Newlines
-```json
-{
-  "context": {
-    "type": "method",
-    "content": "public async Task ProcessAsync() {\n    var foo = new Foo();\n    var result = foo.Bar();\n    return result;\n}"
-  }
-}
-```
-
-**Pros**: Simple, readable, minimal overhead, LLMs handle naturally  
-**Cons**: JSON escaping for quotes and special characters
-
-#### Option 2: Semantic Chunks
-```json
-{
-  "context": {
-    "type": "method",
-    "signature": "public async Task<DataResult> ProcessDataAsync()",
-    "body": "var foo = new Foo();\nvar result = foo.Bar();\nConsole.WriteLine(result);\nreturn new DataResult(result);",
-    "metadata": {
-      "isAsync": true,
-      "returnType": "Task<DataResult>",
-      "hasAwait": false  // This is why CS1998 triggered
-    }
-  }
-}
-```
-
-#### Option 3: Context Levels
-Users choose their context verbosity:
-
-```bash
-dotnet build --output-format json --context-level 0  # No context
-dotnet build --output-format json --context-level 1  # Error line only
-dotnet build --output-format json --context-level 2  # ±2 lines
-dotnet build --output-format json --context-level 3  # Full method/property
-dotnet build --output-format json --context-level 4  # Include class context
-```
-
-### Real-World Examples
-
-#### CS1998: Async method lacks await
-
-The compiler knows this is a method-level issue:
-
-```json
-{
-  "file": "Program.cs",
-  "line": 95,  // Points to method signature
-  "code": "CS1998",
-  "context": {
-    "unit": "method:ProcessDataAsync",
-    "content": "public async Task<DataResult> ProcessDataAsync() {\n    var foo = new Foo();\n    var data = foo.GetData();\n    var result = ProcessInternal(data);\n    LogResult(result);\n    return new DataResult(result);\n}",
-    "hint": "Consider 'await ProcessInternalAsync(data)' or remove 'async' modifier"
-  }
-}
-```
-
-#### CS0534: Does not implement inherited abstract member
-
-The compiler knows this is a class-level issue:
-
-```json
-{
-  "file": "Program.cs",
-  "line": 10,  // Points to class declaration
-  "code": "CS0534",
-  "context": {
-    "unit": "class:XmlProcessor",
-    "content": "public class XmlProcessor : BaseProcessor {\n    public void Process() {\n        // ...\n    }\n}",
-    "missingMembers": ["protected abstract Task ValidateAsync()"]
-  }
-}
-```
-
-### Pattern Recognition Benefits
-
-With context included, LLMs can immediately recognize:
-- **Missing using statements**: Seeing the namespace context
-- **Typos in method names**: Seeing similar methods nearby
-- **Incorrect parameter types**: Seeing variable declarations
-- **Missing await keywords**: Seeing the async context
-
-### The Transformation
-
-This approach transforms AI-assisted development from:
-
-> See error → Request context → Analyze → Suggest fix
-
-To:
-
-> See error with context → Suggest fix
-
-That's a 50% reduction in steps, which compounds across multiple errors.
-
-### Configuration and Extensibility
-
-The context system could be configurable via `.editorconfig`:
-
-```ini
-[*.cs]
-dotnet_diagnostic.CS0103.context_type = surrounding
-dotnet_diagnostic.CS0103.context_before = 3
-dotnet_diagnostic.CS0103.context_after = 1
-dotnet_diagnostic.CS1998.context_type = method
-```
-
-Or via command line:
-
-```bash
-dotnet build --output-format json --context-config custom-context.json
-```
-
-### Evidence: Why Peephole Context Works
-
-#### Empirical Evidence from Language Servers
-
-Language servers (LSP) successfully provide quick fixes with limited context:
-
-1. **VS Code's C# extension** generates fixes using only:
-   - The error diagnostic
-   - ~5-10 lines of surrounding context
-   - Type information from the current scope
-
-2. **Success rates** from existing tools:
-   - IntelliSense quick fixes: ~70% accuracy with local context only
-   - GitHub Copilot: ~80% accuracy for single-line fixes with 10-line context
-   - ChatGPT/Claude: ~85-90% accuracy for method-level fixes when provided with method context
-
-#### Categories of Fixes That Work with Peephole Context
-
-**High Success Rate (>90%) with minimal context:**
-```json
-{
-  "CS0103": "The name 'X' does not exist",
-  "fixes": [
-    "Add using statement",
-    "Fix typo in identifier", 
-    "Generate missing variable declaration"
-  ],
-  "context_needed": "3 lines before + using statements"
-}
-```
-
-**Medium Success Rate (70-90%) with method context:**
-```json
-{
-  "CS1998": "Async method lacks await",
-  "fixes": [
-    "Add await to Task-returning call",
-    "Remove async modifier",
-    "Change return type from Task<T> to T"
-  ],
-  "context_needed": "Full method body"
-}
-```
-
-**Lower Success Rate (<70%) - may need broader context:**
-```json
-{
-  "CS0534": "Does not implement inherited abstract member",
-  "fixes": ["Generate method stub with correct signature"],
-  "context_needed": "Class + base class definition"
-}
-```
-
-### The Patch Generation Workflow
-
-#### Current LLM Approach: Search and Replace
-
-Most LLMs today generate patches using search/replace patterns:
-
-```python
-# LLM generates something like:
-old_code = """var result = foo.Bar();"""
-new_code = """var result = foo.Baz();"""
-# Then applies via tool call or instruction
-```
-
-**Problems:**
-- Fragile (whitespace sensitivity)
-- No guarantee of unique match
-- Can't handle multi-line changes reliably
-
-#### Proposed: Unified Diff Format Support
-
-The build system could generate actual patch files:
-
-```diff
---- src/Program.cs
-+++ src/Program.cs
-@@ -97,5 +97,5 @@ public class DataProcessor {
-     public void ProcessData() {
-         var foo = new Foo();
--        var result = foo.Bar(); // Error here
-+        var result = foo.Baz();
-         Console.WriteLine(result);
-     }
-```
-
-**Benefits:**
-- Standard format (git, patch command)
-- Handles multi-line changes
-- Line number anchoring
-- Context verification before applying
-
-#### Enhanced Context Schema with Patch Generation
-
-```json
-{
-  "file": "Program.cs",
-  "line": 99,
-  "code": "CS1061",
-  "message": "'Foo' does not contain a definition for 'Bar'",
-  "context": {
-    "type": "statement",
-    "snippet": "var result = foo.Bar();",
-    "surrounding": "...",
-    "patchContext": {
-      "startLine": 97,
-      "endLine": 101,
-      "indent": "        ",
-      "content": "public void ProcessData() {\n    var foo = new Foo();\n    var result = foo.Bar();\n    Console.WriteLine(result);\n}"
-    }
-  },
-  "suggestedFixes": [
-    {
-      "description": "Change to existing method 'Baz'",
-      "patch": "@@ -99,1 +99,1 @@\n-        var result = foo.Bar();\n+        var result = foo.Baz();"
-    }
-  ]
-}
-```
-
-### Integration with Existing Tools
-
-#### Option 1: Direct Patch Application
-```bash
-# LLM generates patch
-dotnet build --output-format json --context-level 3 | \
-  llm-fix-errors | \
-  git apply -
-
-# Or with new CLI support:
-dotnet fix --from-patch fixes.patch
-```
-
-#### Option 2: LSP Protocol Integration
-```json
-{
-  "textDocument/codeAction": {
-    "diagnostics": [{
-      "code": "CS1061",
-      "context": { /* peephole context */ }
-    }],
-    "result": [{
-      "title": "Change to 'Baz'",
-      "edit": {
-        "changes": {
-          "file:///Program.cs": [{
-            "range": {"start": {"line": 99}, "end": {"line": 99}},
-            "newText": "var result = foo.Baz();"
-          }]
-        }
-      }
-    }]
-  }
-}
-```
-
-### Success Metrics from Real-World Systems
-
-**GitHub Copilot for Pull Requests** (similar peephole approach):
-- 78% of suggested fixes compile successfully
-- 62% pass existing tests without modification
-- 45% are accepted without any changes
-
-**Amazon CodeWhisperer's Fix Suggestions**:
-- 83% accuracy for syntax errors
-- 71% accuracy for type mismatches
-- 59% accuracy for missing implementations
-
-These systems demonstrate that peephole context is sufficient for most common fixes.
-
-### The Case for Peephole Sufficiency
-
-#### 1. Most Errors Are Local
-Analysis of real codebases shows:
-- **85% of build errors** are fixable within method scope
-- **92% of syntax errors** need only statement-level context
-- **78% of type errors** need only local variable context
-
-#### 2. Compiler Already Does the Hard Work
-The compiler has already:
-- Resolved types and namespaces
-- Identified the exact problem location
-- Determined what's missing or wrong
-- Generated specific error codes
-
-The LLM just needs to:
-- Understand the local pattern
-- Apply common fix templates
-- Generate syntactically correct replacement
-
-#### 3. Validation Through Compilation
-Unlike general code generation, error fixes have immediate validation:
-```bash
-dotnet build → errors → generate fixes → apply → dotnet build
-```
-If the fix doesn't compile, try the next suggestion. This tight feedback loop makes peephole fixes practical.
-
-### Limitations and Mitigations
-
-**When Peephole Context Isn't Enough:**
-
-1. **Architectural issues**: Missing interfaces, wrong design patterns
-   - *Mitigation*: Flag for human review
-
-2. **Cross-file dependencies**: Changes needed in multiple files
-   - *Mitigation*: Include import/dependency context in schema
-
-3. **Business logic errors**: Semantic issues beyond syntax
-   - *Mitigation*: These typically don't show as compiler errors
-
-### Implementation Roadmap
-
-**Phase 1**: Context-aware diagnostics (JSON/Markdown)
-**Phase 2**: Suggested fixes in diagnostic output
-**Phase 3**: Patch generation support (`--generate-patches`)
-**Phase 4**: Direct application (`dotnet fix --auto`)
-
-### Key Insights
-
-1. **Errors have locality**: Most errors can be understood within a small context window
-2. **Compilers know semantics**: Leverage existing understanding of code structure
-3. **Pre-computation saves tokens**: Do the work once during build, not repeatedly during analysis
-4. **Different errors need different context**: A type mismatch needs less context than an async/await issue
-5. **Peephole fixes work**: Real-world evidence shows 70-90% success rates with limited context
-6. **Patch files are underutilized**: Standard diff format could streamline the fix application process
-
-The context-aware diagnostic schema turns the build system into an intelligent diagnostic system optimized for both human and AI consumption, with a clear path to automated fix generation and application.
-
----
-
-## Appendix B: Diagnostic Wishlist - Unlocking Unix Workflows
-
-The goal isn't to have LLMs create patches directly, but rather to provide rich enough diagnostics from the dotnet CLI to enable powerful workflows combining Unix tools, git, and intelligent automation. This appendix explores what diagnostic information would unlock specific workflows.
+This section presents on unclear line on whether these diagnostics are solely LLM consumed or in some cases would also benefit from LLM produced. That's all food for thought.
 
 ### The Core Insight
 
-Modern development increasingly relies on composing simple tools into powerful workflows. The dotnet CLI should provide diagnostics that integrate naturally with Unix philosophy: do one thing well, output structured data, and enable composition.
+Modern development increasingly relies on composing simple tools into powerful workflows. The dotnet CLI should provide diagnostics that integrate naturally with Unix philosophy: do one thing well, output structured data, and enable composition. More specifically, the dotnet CLI should produce output that describes source correctness and build result data, as opposed to conventional unstructured build logs.
 
 ### Diagnostic Wishlist
 
@@ -910,18 +503,24 @@ Modern development increasingly relies on composing simple tools into powerful w
     "missingFromType": "IProcessorInfo",
     "typeLocation": "src/MarkdownTable.Core/IProcessorInfo.cs:12",
     "typeKind": "interface",
-    "assembly": "MarkdownTable.Core"
+    "project": "MarkdownTable.Core"
   }
 }
 ```
 
-**Unlocked Workflow:**
+**Unlocked Automated Workflow**
+
 ```bash
-# Direct navigation to fix location
+# Extract file and line for programmatic editing
 $ ERROR_JSON=$(dotnet build --output-format json 2>&1)
 $ FILE=$(echo $ERROR_JSON | jq -r '.[] | select(.error=="CS1061") | .typeInfo.typeLocation' | cut -d: -f1)
 $ LINE=$(echo $ERROR_JSON | jq -r '.[] | select(.error=="CS1061") | .typeInfo.typeLocation' | cut -d: -f2)
-$ vim +$LINE $FILE  # Opens exact location of interface
+
+# Read the relevant section
+$ sed -n "$((LINE-2)),$((LINE+10))p" $FILE
+
+# Apply fix programmatically
+$ sed -i "${LINE}a\\    bool IsStreaming { get; }" $FILE
 ```
 
 #### 2. Namespace Resolution Hints
@@ -945,7 +544,7 @@ $ vim +$LINE $FILE  # Opens exact location of interface
         "fullName": "MarkdownTable.Rendering.Processors.FullWidthBufferedProcessor",
         "location": "src/MarkdownTable.Rendering/Processors/FullWidthBufferedProcessor.cs",
         "namespace": "MarkdownTable.Rendering.Processors",
-        "assembly": "MarkdownTable.Rendering"
+        "project": "MarkdownTable.Rendering"
       }
     ],
     "suggestedUsing": "using MarkdownTable.Rendering.Processors;"
@@ -1042,10 +641,17 @@ $ grep -r "$METHOD_SIG" src/ | cut -d: -f1 | uniq | xargs vim -p
 
 **Unlocked Workflow:**
 ```bash
-# Generate stub implementations
+# Generate and insert stub implementations
 $ dotnet build --output-format json | \
-  jq -r '.[] | select(.error=="CS0534") | .inheritanceInfo.implementationTemplate' | \
-  pbcopy  # Copy to clipboard for pasting
+  jq -r '.[] | select(.error=="CS0534") | 
+    "\(.inheritanceInfo.currentClassLocation):\(.inheritanceInfo.implementationTemplate)"' | \
+  while IFS=: read location template; do
+    FILE=$(echo $location | cut -d: -f1)
+    LINE=$(echo $location | cut -d: -f2)
+    # Find the class closing brace and insert before it
+    CLASS_END=$(awk '/^}/ {print NR; exit}' $FILE)
+    sed -i "$((CLASS_END-1))a\\$template" $FILE
+  done
 ```
 
 #### 5. Dependency Graph Context
@@ -1122,9 +728,20 @@ $ dotnet build --output-format json | \
 }
 ```
 
-**Unlocked Workflow:**
+**Unlocked Human Workflow:**
 ```bash
-# Find and fix typos automatically
+# Review potential typos before fixing
+$ dotnet build --output-format json | \
+  jq '.[] | select(.symbolCrossRef.similarSymbols[0].distance < 3) | 
+    {file: .file, line: .line, 
+     typed: .referencedSymbol, 
+     suggestion: .symbolCrossRef.similarSymbols[0].name}'
+# Manually review and fix the ones that make sense
+```
+
+**Unlocked Automated Workflow (LLM/CI):**
+```bash
+# Auto-fix likely typos (distance < 3)
 $ dotnet build --output-format json | \
   jq -r '.[] | select(.symbolCrossRef.similarSymbols[0].distance < 3) | 
     "\(.file):\(.line):s/\(.referencedSymbol)/\(.symbolCrossRef.similarSymbols[0].name)/g"' | \
