@@ -1,8 +1,8 @@
 # dotnet-cli-output build log
 
 Command: /usr/local/share/dotnet/sdk/10.0.100-rc.1.25451.107/dotnet.dll build test-project --noconsolelogger
-Time: 2025-09-09T15:34:23
-Duration: 0.5s
+Time: 2025-09-09T16:57:01
+Duration: 0.6s
 
 This document contains build results in markdown tables. A peephole view for each error is also provided to aid comprehension of the problem.
 

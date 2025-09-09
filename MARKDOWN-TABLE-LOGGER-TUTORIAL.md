@@ -11,7 +11,7 @@ cd dotnet-cli-output
 dotnet build src/MarkdownTableLogger
 dotnet publish src/SymbolIndexer -o bin/SymbolIndexer
 
-# Start the symbol indexer daemon (for enhanced symbol references)
+# Start the symbol indexer daemon (MUST run from repository root for full indexing)
 ./bin/SymbolIndexer/SymbolIndexer start &
 
 # Discover all available modes and options
@@ -81,7 +81,7 @@ Duration: 0.6s
 # Quick status check
 dotnet build --logger:"/path/to/MarkdownTableLogger.dll;mode=minimal" --noconsolelogger
 
-# LLM debugging (recommended) - requires daemon running
+# LLM debugging (recommended) - requires daemon running from repo root
 ./bin/SymbolIndexer/SymbolIndexer start &
 dotnet build --logger:"/path/to/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
 
@@ -103,8 +103,12 @@ The logger integrates with a persistent SymbolIndexer daemon to provide enhanced
 - **Undefined symbols**: `undefinedVar` - undefined symbol (compilation errors)
 
 ### **Daemon Management**
+
+**⚠️ IMPORTANT**: The SymbolIndexer **must be started from the repository root** to index all projects. It recursively indexes all `.cs` files from its launch directory.
+
 ```bash
-# Start daemon (run from project root)
+# Start daemon (MUST run from repository root for complete symbol indexing)
+cd /path/to/your-repo-root
 ./bin/SymbolIndexer/SymbolIndexer start &
 
 # Query symbols manually (optional)
@@ -116,6 +120,11 @@ The logger integrates with a persistent SymbolIndexer daemon to provide enhanced
 # Daemon auto-discovers via PID files following .NET build-server patterns
 # Logger gracefully degrades if daemon unavailable
 ```
+
+**Directory Impact on Symbol Indexing:**
+- **From repo root**: Indexes all projects → Full cross-project symbol references
+- **From single project**: Only indexes that project → Limited symbol context  
+- **Best practice**: Always start from repository root for maximum utility
 
 ### **Benefits for LLMs**
 ✅ **Symbol context** - Know where types are defined vs. undefined  
