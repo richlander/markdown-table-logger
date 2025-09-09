@@ -1,7 +1,0 @@
-[
-  {"code": "CS1061", "count": 10, "description": "Member does not exist"},
-  {"code": "CS0103", "count": 7, "description": "Name does not exist in current context"},
-  {"code": "CS0246", "count": 2, "description": "Type or namespace not found"},
-  {"code": "CS1501", "count": 2, "description": "No overload takes N arguments"},
-  {"code": "CS1998", "count": 1, "description": "Async method lacks await operators"}
-]
