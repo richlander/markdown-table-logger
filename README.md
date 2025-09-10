@@ -1,4 +1,4 @@
-# MarkdownTableLogger Tutorial
+# MarkdownTableLogger
 
 A dotnet build logger that transforms verbose MSBuild output into clean, token-efficient markdown tables optimized for LLMs and humans.
 
@@ -22,7 +22,7 @@ git clone https://github.com/your-repo/dotnet-cli-output
 cd dotnet-cli-output
 ./build.sh  # or build.bat on Windows
 
-# Start the symbol indexer daemon (MUST run from repository root for full indexing)
+# Start the symbol indexer daemon (MUST run from _your_ repository root for full indexing)
 ./bin/SymbolIndexer/SymbolIndexer start &
 
 # Discover all available modes and options
