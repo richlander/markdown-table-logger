@@ -754,7 +754,7 @@ public class OutputGenerator
         var repoName = GetRepositoryName();
         var totalErrors = diagnostics.Count;
         var totalWarnings = projects.Sum(p => p.Warnings);
-        var buildStatus = totalErrors == 0 ? "✅ Success" : "❌ Failed";
+        var buildStatus = totalErrors == 0 ? "Success" : "Failed";
         
         sb.AppendLine($"# Latest Build Log Index - {repoName}");
         sb.AppendLine();
