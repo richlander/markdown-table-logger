@@ -399,7 +399,8 @@ public class MarkdownTableBuildLogger : Logger
         }
         else
         {
-            Console.WriteLine("No prompt document generated.");
+            // Fall back to projects mode when no errors (no prompt document generated)
+            WriteProjectsMode();
         }
     }
 
@@ -413,7 +414,8 @@ public class MarkdownTableBuildLogger : Logger
         }
         else
         {
-            Console.WriteLine("No verbose prompt document generated.");
+            // Fall back to projects mode when no errors (no prompt document generated)
+            WriteProjectsMode();
         }
     }
 
