@@ -1,8 +1,8 @@
 # dotnet-cli-output build log
 
 Command: /usr/local/share/dotnet/sdk/10.0.100-rc.1.25451.107/dotnet.dll build test-project --noconsolelogger
-Time: 2025-09-09T16:57:01
-Duration: 0.6s
+Time: 2025-09-09T21:49:56
+Duration: 0.5s
 
 This document contains build results in markdown tables. A peephole view for each error is also provided to aid comprehension of the problem.
 
@@ -14,14 +14,14 @@ This document contains build results in markdown tables. A peephole view for eac
 
 ## Build Errors
 
-| File | Line | Col | Code |
-|------|------|-----|------|
-| test-project/Program.cs | 11 | 27 | CS0103 |
-| test-project/Program.cs | 15 | 13 | CS1061 |
-| test-project/Program.cs | 18 | 9 | CS0246 |
-| test-project/Program.cs | 18 | 33 | CS0246 |
-| test-project/Program.cs | 24 | 20 | CS0103 |
-| test-project/Program.cs | 28 | 16 | CS1998 |
+| File | Line | Col | Code | Anchor | Lines |
+|------|------|-----|------|--------|-------|
+| test-project/Program.cs | 11 | 27 | CS0103 | #testprojectprogramcs1127 | 27-37 |
+| test-project/Program.cs | 15 | 13 | CS1061 | #testprojectprogramcs1513 | 39-48 |
+| test-project/Program.cs | 18 | 9 | CS0246 | #testprojectprogramcs189 | 50-59 |
+| test-project/Program.cs | 18 | 33 | CS0246 | #testprojectprogramcs1833 | 61-70 |
+| test-project/Program.cs | 24 | 20 | CS0103 | #testprojectprogramcs2420 | 72-82 |
+| test-project/Program.cs | 28 | 16 | CS1998 | #testprojectprogramcs2816 | 84-96 |
 
 ### test-project/Program.cs:11:27 (lines 7-15):
 
@@ -35,12 +35,6 @@ This document contains build results in markdown tables. A peephole view for eac
         str.NonExistentMethod();
 ```
 
-**Referenced symbols:**
-- `Console` - .NET Libraries (System.Console)
-- `WriteLine` - .NET Libraries
-- `undefinedVariable` - undefined symbol
-
-
 ### test-project/Program.cs:15:13 (lines 11-19):
 
 ```csharp
@@ -51,11 +45,6 @@ This document contains build results in markdown tables. A peephole view for eac
         
         UndefinedType obj = new UndefinedType();
 ```
-
-**Referenced symbols:**
-- `NonExistentMethod` - undefined symbol
-- `str` - test-project/Program.cs:14,13
-
 
 ### test-project/Program.cs:18:9 (lines 14-22):
 
@@ -68,10 +57,6 @@ This document contains build results in markdown tables. A peephole view for eac
         Console.WriteLine("test", "extra", "args");
 ```
 
-**Referenced symbols:**
-- `UndefinedType` - undefined symbol
-
-
 ### test-project/Program.cs:18:33 (lines 14-22):
 
 ```csharp
@@ -82,10 +67,6 @@ This document contains build results in markdown tables. A peephole view for eac
         
         Console.WriteLine("test", "extra", "args");
 ```
-
-**Referenced symbols:**
-- `UndefinedType` - undefined symbol
-
 
 ### test-project/Program.cs:24:20 (lines 21-28):
 
@@ -99,13 +80,6 @@ This document contains build results in markdown tables. A peephole view for eac
     async Task BadAsyncMethod()
 ```
 
-**Referenced symbols:**
-- `JsonConvert` - external package (Newtonsoft.Json)
-- `SerializeObject` - external package (Newtonsoft.Json)
-- `test` - undefined symbol
-- `var` - .NET Libraries
-
-
 ### test-project/Program.cs:28:16 (lines 24-32):
 
 ```csharp
@@ -118,9 +92,6 @@ This document contains build results in markdown tables. A peephole view for eac
     }
 }
 ```
-
-**Referenced symbols:**
-- `Task` - .NET Libraries (System.Threading.Tasks)
 
 
 

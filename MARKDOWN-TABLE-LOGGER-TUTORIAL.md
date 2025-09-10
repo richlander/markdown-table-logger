@@ -53,12 +53,17 @@ Duration: 0.6s
 
 ## Build Errors
 
-| File | Line | Col | Code |
-|------|------|-----|------|
-| Program.cs | 42 | 15 | CS0103 |
-| Utils.cs   | 15 | 9  | CS1061 |
+| File | Line | Col | Code | Anchor | Lines |
+|------|------|-----|------|--------|-------|
+| Program.cs | 42 | 15 | CS0103 | #programcs4215 | 27-42 |
+| Utils.cs   | 15 | 9  | CS1061 | #utilscs159 | 44-58 |
 
-### Program.cs:42:15 (lines 38-46):
+### Program.cs:42:15
+
+- File: Program.cs
+- Lines: 38-46
+- Error: CS0103
+- Message: The name 'undefinedVar' does not exist in the current context
 
 ```csharp
     public void ProcessData() {
@@ -156,17 +161,50 @@ jq 'group_by(.file) | map({file: .[0].file, count: length})' dotnet-build-diagno
 jq 'group_by(.code) | map({code: .[0].code, count: length, avgCol: (map(.column) | add / length)})' dotnet-build-diagnostics.json
 ```
 
+## Enhanced Table Navigation
+
+The prompt mode now includes **Anchor** and **Lines** columns for precise document navigation:
+
+- **Anchor**: GitHub-compatible anchor link (e.g., `#programcs4215`)
+- **Lines**: Exact line range in the prompt document (e.g., `27-42`)
+
+**LLM Usage Example:**
+```bash
+# Extract specific error context using the Lines column
+sed -n '27,42p' dotnet-build-prompt.md
+
+# Result: Complete error section with metadata and code
+- File: Program.cs
+- Lines: 38-46  
+- Error: CS0103
+- Message: The name 'undefinedVar' does not exist in the current context
+```
+
+**Enhanced JSON Output:**
+Prompt mode also generates `*-enhanced.json` files with anchor and line references:
+```json
+{
+  "file": "Program.cs",
+  "line": 42,
+  "code": "CS0103", 
+  "anchor": "#programcs4215",
+  "lines": "27-42"
+}
+```
+
 ## Key Benefits
 
 ✅ **75-89% token reduction** vs raw dotnet output  
 ✅ **LLM-first design** with token-optimized prompt mode  
+✅ **Direct line access** - `sed -n '27,42p'` for precise extraction  
+✅ **Structured metadata** - Clean bullet points for key error info  
 ✅ **Column precision** - distinguish errors at same line  
 ✅ **Git patch-style context** - 4 lines before/after for fix scope  
 ✅ **Enhanced symbol references** - User code vs. framework vs. undefined  
 ✅ **Assembly information** - Know exactly which .NET library types come from  
 ✅ **Persistent daemon** - Real-time symbol indexing with file watching  
 ✅ **Clean organized logs** - timestamped `_logs/` directory  
-✅ **Web-native CSV** - consistent table structures always  
+✅ **Web-native tables** - consistent markdown table structures  
 ✅ **Both audiences** - concise for LLMs, verbose for humans  
 
 ## Pro Tips

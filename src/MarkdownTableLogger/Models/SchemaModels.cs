@@ -17,6 +17,16 @@ public record ErrorDiagnostic(
     [property: JsonPropertyName("message")] string? Message = null
 );
 
+public record EnhancedErrorDiagnostic(
+    [property: JsonPropertyName("file")] string File,
+    [property: JsonPropertyName("line")] int Line,
+    [property: JsonPropertyName("column")] int Column,
+    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("message")] string? Message = null,
+    [property: JsonPropertyName("anchor")] string? Anchor = null,
+    [property: JsonPropertyName("lines")] string? Lines = null
+);
+
 public record ErrorTypeSummary(
     [property: JsonPropertyName("code")] string Code,
     [property: JsonPropertyName("count")] int Count,

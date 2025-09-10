@@ -263,15 +263,12 @@ public class MarkdownTableBuildLogger : Logger
 
     private void GenerateOutputFiles()
     {
-        // Generate project success view
-        _outputGenerator.WriteProjectResults(_projectResults, "dotnet-build-results");
+        // Always generate project results
+        _outputGenerator.WriteProjectResults(_projectResults, "dotnet-build-projects");
         
-        // Generate diagnostics if there are errors or warnings
+        // Always generate diagnostic type summary if there are errors or warnings  
         if (_diagnostics.Count > 0)
         {
-            _outputGenerator.WriteErrorDiagnostics(_diagnostics, "dotnet-build-diagnostics");
-            
-            // Generate diagnostic type summary
             var diagnosticTypeSummary = _diagnostics
                 .GroupBy(d => d.Code)
                 .Select(g => new ErrorTypeSummary(
@@ -282,17 +279,22 @@ public class MarkdownTableBuildLogger : Logger
                 .OrderByDescending(e => e.Count)
                 .ToList();
             
-            _outputGenerator.WriteErrorTypeSummary(diagnosticTypeSummary, "dotnet-build-diagnostic-types");
-        }
-        
-        // Generate prompt document if requested
-        if (_mode == "prompt")
-        {
+            _outputGenerator.WriteErrorTypeSummary(diagnosticTypeSummary, "dotnet-build-error-types");
+            
+            // Always generate prompt document (source of truth for enhanced table)
             _outputGenerator.WritePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, true, "dotnet-build-prompt");
-        }
-        else if (_mode == "prompt-verbose")
-        {
-            _outputGenerator.WritePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, false, "dotnet-build-prompt-verbose");
+            
+            // Generate verbose prompt document if requested
+            if (_mode == "prompt-verbose")
+            {
+                _outputGenerator.WritePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, false, "dotnet-build-prompt-verbose");
+            }
+            
+            // Extract enhanced errors table from prompt document for standalone use
+            _outputGenerator.WriteEnhancedErrorsTable("dotnet-build-prompt", "dotnet-build-errors-with-lookup-ranges");
+            
+            // Also generate basic JSON diagnostics for backward compatibility
+            _outputGenerator.WriteErrorDiagnostics(_diagnostics, "dotnet-build-errors");
         }
     }
 
@@ -328,29 +330,44 @@ public class MarkdownTableBuildLogger : Logger
 
     private void WriteProjectsMode()
     {
-        // Use the OutputGenerator to maintain consistency
-        var markdown = _outputGenerator.GenerateProjectResultsMarkdown(_projectResults, _showStatus);
-        Console.WriteLine(markdown);
+        // Read from generated file
+        var filePath = Path.Combine(_outputGenerator.LogsDirectory, "dotnet-build-projects.md");
+        if (File.Exists(filePath))
+        {
+            Console.WriteLine(File.ReadAllText(filePath));
+        }
+        else
+        {
+            Console.WriteLine("No project results available.");
+        }
     }
 
     private void WriteErrorsMode()
     {
-        // Always show table structure, even if empty
-        var diagnosticTable = _outputGenerator.GenerateErrorDiagnosticsMarkdown(_diagnostics, _showMessage);
-        Console.WriteLine(diagnosticTable);
+        // Read enhanced errors table from generated file
+        var filePath = Path.Combine(_outputGenerator.LogsDirectory, "dotnet-build-errors-with-lookup-ranges.md");
+        if (File.Exists(filePath))
+        {
+            Console.WriteLine(File.ReadAllText(filePath));
+        }
+        else
+        {
+            Console.WriteLine("No errors found.");
+        }
     }
 
     private void WriteTypesMode()
     {
-        // Always show table structure, even if empty
-        var diagnosticTypeSummary = _diagnostics
-            .GroupBy(d => d.Code)
-            .Select(g => new ErrorTypeSummary(g.Key, g.Count(), ErrorCodeDescriptions.GetDescription(g.Key)))
-            .OrderByDescending(e => e.Count)
-            .ToList();
-        
-        var diagnosticTypeTable = _outputGenerator.GenerateErrorTypeSummaryMarkdown(diagnosticTypeSummary, _showDescription);
-        Console.WriteLine(diagnosticTypeTable);
+        // Read from generated file
+        var filePath = Path.Combine(_outputGenerator.LogsDirectory, "dotnet-build-error-types.md");
+        if (File.Exists(filePath))
+        {
+            Console.WriteLine(File.ReadAllText(filePath));
+        }
+        else
+        {
+            Console.WriteLine("No error types found.");
+        }
     }
 
     private void WriteMinimalMode()
@@ -371,16 +388,30 @@ public class MarkdownTableBuildLogger : Logger
 
     private void WritePromptMode()
     {
-        // Always show document structure with token-optimized context (LLM-first)
-        var promptDocument = _outputGenerator.GeneratePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, true);
-        Console.WriteLine(promptDocument);
+        // Read from generated file
+        var filePath = Path.Combine(_outputGenerator.LogsDirectory, "dotnet-build-prompt.md");
+        if (File.Exists(filePath))
+        {
+            Console.WriteLine(File.ReadAllText(filePath));
+        }
+        else
+        {
+            Console.WriteLine("No prompt document generated.");
+        }
     }
 
     private void WritePromptVerboseMode()
     {
-        // Always show document structure with full error messages (human-readable)
-        var promptDocument = _outputGenerator.GeneratePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, false);
-        Console.WriteLine(promptDocument);
+        // Read from generated file
+        var filePath = Path.Combine(_outputGenerator.LogsDirectory, "dotnet-build-prompt-verbose.md");
+        if (File.Exists(filePath))
+        {
+            Console.WriteLine(File.ReadAllText(filePath));
+        }
+        else
+        {
+            Console.WriteLine("No verbose prompt document generated.");
+        }
     }
 
 

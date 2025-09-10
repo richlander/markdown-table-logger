@@ -17,6 +17,8 @@ public class OutputGenerator
     private readonly string _buildTimestamp;
     private readonly SymbolIndexerClient _symbolClient;
     
+    public string LogsDirectory => _logsDirectory;
+    
     public OutputGenerator()
     {
         _buildTimestamp = DateTime.Now.ToString("yyyy-MM-ddTHH-mm-ss");
@@ -41,6 +43,26 @@ public class OutputGenerator
         
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
+    }
+    
+    public void WriteEnhancedErrorDiagnostics(List<EnhancedErrorDiagnostic> enhancedErrors, string baseFileName)
+    {
+        var json = JsonSerializer.Serialize(enhancedErrors, _jsonOptions);
+        File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
+    }
+    
+    public void WriteEnhancedErrorsTable(string promptFileName, string outputFileName)
+    {
+        var promptFilePath = Path.Combine(_logsDirectory, $"{promptFileName}.md");
+        var outputFilePath = Path.Combine(_logsDirectory, $"{outputFileName}.md");
+        
+        if (File.Exists(promptFilePath))
+        {
+            var promptContent = File.ReadAllText(promptFilePath);
+            var relativePromptPath = $"{promptFileName}.md"; // Just the filename, relative within same directory
+            var enhancedTable = ExtractErrorsTable(promptContent, relativePromptPath);
+            File.WriteAllText(outputFilePath, enhancedTable);
+        }
     }
 
     public void WriteErrorTypeSummary(List<ErrorTypeSummary> summary, string baseFileName)
@@ -140,6 +162,15 @@ public class OutputGenerator
 
     public string GeneratePromptDocument(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false)
     {
+        // Pass 1: Generate the complete document with current table structure
+        var pass1Document = GeneratePromptDocumentPass1(projects, diagnostics, startTime, duration, command, concise);
+        
+        // Pass 2: Enhance the errors table with Anchor and Lines columns
+        return EnhanceErrorsTableWithLineReferences(pass1Document, diagnostics);
+    }
+    
+    private string GeneratePromptDocumentPass1(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false)
+    {
         var sb = new StringBuilder();
         
         // Header with metadata
@@ -167,7 +198,7 @@ public class OutputGenerator
         }
         sb.AppendLine();
         
-        // Diagnostics table
+        // Diagnostics table (will be enhanced in pass 2)
         sb.AppendLine("## Build Errors");
         sb.AppendLine();
         sb.AppendLine("| File | Line | Col | Code |");
@@ -186,8 +217,16 @@ public class OutputGenerator
             {
                 var (context, startLine, endLine) = GenerateErrorContextWithRange(diagnostic, concise);
                 
-                // Include line:column and range in heading for LLM precision
-                sb.AppendLine($"### {diagnostic.File}:{diagnostic.Line}:{diagnostic.Column} (lines {startLine}-{endLine}):");
+                // Clean header with structured metadata
+                sb.AppendLine($"### {diagnostic.File}:{diagnostic.Line}:{diagnostic.Column}");
+                sb.AppendLine();
+                sb.AppendLine($"- File: {diagnostic.File}");
+                sb.AppendLine($"- Lines: {startLine}-{endLine}");
+                sb.AppendLine($"- Error: {diagnostic.Code}");
+                if (!string.IsNullOrEmpty(diagnostic.Message))
+                {
+                    sb.AppendLine($"- Message: {diagnostic.Message}");
+                }
                 sb.AppendLine();
                 sb.AppendLine("```csharp");
                 sb.AppendLine(context);
@@ -208,10 +247,228 @@ public class OutputGenerator
         return sb.ToString();
     }
     
+    private string EnhanceErrorsTableWithLineReferences(string pass1Document, List<ErrorDiagnostic> diagnostics)
+    {
+        if (diagnostics.Count == 0)
+            return pass1Document;
+            
+        var lines = pass1Document.Split('\n');
+        var errorSectionMap = new Dictionary<string, (string anchor, int startLine, int endLine)>();
+        
+        // Find all error sections and their line ranges in the document
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (line.StartsWith("### ") && !line.Contains("("))
+            {
+                // Parse new format: "### test-project/Program.cs:11:27"
+                var errorKey = line.Substring(4).Trim(); // Remove "### "
+                var anchor = GenerateAnchor(errorKey);
+                
+                // Find actual markdown line numbers where this section appears
+                int sectionStart = i + 1; // Line after the ### header
+                int sectionEnd = i + 1;
+                
+                // Find the end of this section (next ### or ## or end of document)
+                for (int j = i + 1; j < lines.Length; j++)
+                {
+                    if (lines[j].StartsWith("### ") || lines[j].StartsWith("## "))
+                    {
+                        sectionEnd = j - 1;
+                        break;
+                    }
+                    sectionEnd = j;
+                }
+                
+                errorSectionMap[errorKey] = (anchor, sectionStart + 1, sectionEnd + 1); // Convert to 1-based line numbers
+            }
+        }
+        
+        // Now find and replace the errors table
+        var result = new StringBuilder();
+        bool inErrorsTable = false;
+        bool tableHeaderFound = false;
+        bool tableSeparatorFound = false;
+        
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            
+            if (line == "## Build Errors")
+            {
+                inErrorsTable = true;
+                result.AppendLine(line);
+                continue;
+            }
+            
+            if (inErrorsTable && line.StartsWith("## ") && line != "## Build Errors")
+            {
+                inErrorsTable = false;
+                result.AppendLine(line);
+                continue;
+            }
+            
+            if (inErrorsTable)
+            {
+                if (line == "| File | Line | Col | Code |" && !tableHeaderFound)
+                {
+                    // Replace with enhanced header
+                    result.AppendLine("| File | Line | Col | Code | Anchor | Lines |");
+                    tableHeaderFound = true;
+                    continue;
+                }
+                
+                if (line == "|------|------|-----|------|" && !tableSeparatorFound)
+                {
+                    // Replace with enhanced separator
+                    result.AppendLine("|------|------|-----|------|--------|-------|");
+                    tableSeparatorFound = true;
+                    continue;
+                }
+                
+                // Check if this is a table row (starts and ends with |)
+                if (line.StartsWith("| ") && line.EndsWith(" |") && tableHeaderFound && tableSeparatorFound)
+                {
+                    // Parse the existing row to extract file:line:col
+                    var parts = line.Split('|').Select(p => p.Trim()).ToArray();
+                    if (parts.Length >= 5) // Should be ["", "File", "Line", "Col", "Code", ""]
+                    {
+                        var file = parts[1];
+                        var lineNum = parts[2];
+                        var col = parts[3];
+                        var code = parts[4];
+                        
+                        var errorKey = $"{file}:{lineNum}:{col}";
+                        
+                        if (errorSectionMap.TryGetValue(errorKey, out var sectionInfo))
+                        {
+                            var (anchor, startLine, endLine) = sectionInfo;
+                            result.AppendLine($"| {file} | {lineNum} | {col} | {code} | {anchor} | {startLine}-{endLine} |");
+                        }
+                        else
+                        {
+                            // Fallback if we can't find the section
+                            result.AppendLine($"| {file} | {lineNum} | {col} | {code} |  |  |");
+                        }
+                        continue;
+                    }
+                }
+            }
+            
+            result.AppendLine(line);
+        }
+        
+        return result.ToString();
+    }
+    
+    private static string GenerateAnchor(string headerText)
+    {
+        // GitHub converts headers to lowercase, replaces spaces with hyphens, removes special chars
+        // "### test-project/Program.cs:11:27 (lines 7-15):" becomes 
+        // "#test-projectprogramcs1127-lines-7-15"
+        return "#" + headerText.ToLower()
+            .Replace("/", "")
+            .Replace("\\", "") 
+            .Replace(".", "")
+            .Replace(":", "")
+            .Replace("(", "")
+            .Replace(")", "")
+            .Replace(" ", "-")
+            .Replace("--", "-")
+            .Trim('-');
+    }
+    
+    private List<EnhancedErrorDiagnostic> GenerateEnhancedDiagnostics(string markdown, List<ErrorDiagnostic> originalDiagnostics)
+    {
+        var lines = markdown.Split('\n');
+        var errorSectionMap = new Dictionary<string, (string anchor, string lineRange)>();
+        
+        // Find all error sections and their line ranges in the document
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (line.StartsWith("### ") && !line.Contains("("))
+            {
+                // Parse new format: "### test-project/Program.cs:11:27"
+                var errorKey = line.Substring(4).Trim(); // Remove "### "
+                var anchor = GenerateAnchor(errorKey);
+                
+                // Find actual markdown line numbers where this section appears
+                int sectionStart = i + 1; // Line after the ### header
+                int sectionEnd = i + 1;
+                
+                // Find the end of this section (next ### or ## or end of document)
+                for (int j = i + 1; j < lines.Length; j++)
+                {
+                    if (lines[j].StartsWith("### ") || lines[j].StartsWith("## "))
+                    {
+                        sectionEnd = j - 1;
+                        break;
+                    }
+                    sectionEnd = j;
+                }
+                
+                var markdownLineRange = $"{sectionStart + 1}-{sectionEnd + 1}"; // Convert to 1-based line numbers
+                errorSectionMap[errorKey] = (anchor, markdownLineRange);
+            }
+        }
+        
+        // Create enhanced diagnostics by matching with original diagnostics
+        var enhancedDiagnostics = new List<EnhancedErrorDiagnostic>();
+        
+        foreach (var diagnostic in originalDiagnostics)
+        {
+            var errorKey = $"{diagnostic.File}:{diagnostic.Line}:{diagnostic.Column}";
+            
+            if (errorSectionMap.TryGetValue(errorKey, out var sectionInfo))
+            {
+                var (anchor, lineRange) = sectionInfo;
+                enhancedDiagnostics.Add(new EnhancedErrorDiagnostic(
+                    diagnostic.File,
+                    diagnostic.Line,
+                    diagnostic.Column,
+                    diagnostic.Code,
+                    diagnostic.Message,
+                    anchor,
+                    lineRange
+                ));
+            }
+            else
+            {
+                // Fallback without enhancement
+                enhancedDiagnostics.Add(new EnhancedErrorDiagnostic(
+                    diagnostic.File,
+                    diagnostic.Line,
+                    diagnostic.Column,
+                    diagnostic.Code,
+                    diagnostic.Message,
+                    null,
+                    null
+                ));
+            }
+        }
+        
+        return enhancedDiagnostics;
+    }
+    
     public void WritePromptDocument(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false, string baseFileName = "dotnet-build-prompt")
     {
         var markdown = GeneratePromptDocument(projects, diagnostics, startTime, duration, command, concise);
-        File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
+        var filePath = Path.Combine(_logsDirectory, $"{baseFileName}.md");
+        
+        // Add footer with prompt file path
+        if (diagnostics.Count > 0)
+        {
+            var relativePath = $"{baseFileName}.md";
+            var repoRelativeDirectory = GetRepoRelativeDirectory();
+            markdown = markdown.TrimEnd() + $"\n\nPrompt file: {relativePath}\nDirectory: {repoRelativeDirectory}\n";
+            
+            // Also generate enhanced JSON diagnostics with anchor and line references
+            var enhancedDiagnostics = GenerateEnhancedDiagnostics(markdown, diagnostics);
+            WriteEnhancedErrorDiagnostics(enhancedDiagnostics, "dotnet-build-errors-with-lookup-ranges-enhanced");
+        }
+        
+        File.WriteAllText(filePath, markdown);
     }
     
     private (string context, int startLine, int endLine) GenerateErrorContextWithRange(ErrorDiagnostic diagnostic, bool concise = false)
@@ -382,6 +639,21 @@ public class OutputGenerator
             return "build";
         }
     }
+    
+    private string GetRepoRelativeDirectory()
+    {
+        try
+        {
+            var currentDir = Directory.GetCurrentDirectory();
+            var logsFullPath = Path.GetFullPath(_logsDirectory);
+            var relativePath = Path.GetRelativePath(currentDir, logsFullPath);
+            return relativePath.Replace('\\', '/'); // Use forward slashes for consistency
+        }
+        catch
+        {
+            return _logsDirectory; // Fallback to original path
+        }
+    }
 
     private static string TruncateMessage(string message, int maxLength)
     {
@@ -389,5 +661,46 @@ public class OutputGenerator
             return message;
         
         return message[..(maxLength - 3)] + "...";
+    }
+    
+    private string ExtractErrorsTable(string promptContent, string promptFilePath)
+    {
+        var lines = promptContent.Split('\n');
+        var tableLines = new List<string>();
+        bool inErrorsSection = false;
+        bool tableFinished = false;
+        
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            
+            if (line == "## Build Errors")
+            {
+                inErrorsSection = true;
+                continue; // Skip the header itself
+            }
+            
+            if (inErrorsSection && !tableFinished)
+            {
+                // Stop when we hit the first ### (detailed sections) or another ##
+                if (line.StartsWith("### ") || (line.StartsWith("## ") && line != "## Build Errors"))
+                {
+                    tableFinished = true;
+                    break;
+                }
+                
+                tableLines.Add(line);
+            }
+        }
+        
+        // Remove trailing empty lines
+        while (tableLines.Count > 0 && string.IsNullOrWhiteSpace(tableLines[^1]))
+        {
+            tableLines.RemoveAt(tableLines.Count - 1);
+        }
+        
+        var tableContent = string.Join('\n', tableLines);
+        var repoRelativeDirectory = GetRepoRelativeDirectory();
+        return tableContent + $"\n\nPrompt file: {promptFilePath}\nDirectory: {repoRelativeDirectory}\n";
     }
 }
