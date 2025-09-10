@@ -2,30 +2,41 @@
 
 A dotnet build logger that transforms verbose MSBuild output into clean, token-efficient markdown tables optimized for LLMs and humans.
 
+## Build Scripts
+
+The repository includes cross-platform build scripts for easy setup:
+
+- **`build.sh`** - Unix/Linux/macOS
+- **`build.bat`** - Windows
+
+Both scripts:
+- Publish SymbolIndexer in Release configuration to `bin/SymbolIndexer/`
+- Build MarkdownTableLogger in Release configuration to `bin/MarkdownTableLogger/`
+- Create ready-to-use components for any dotnet project
+
 ## Quick Start
 
 ```bash
-# Build the logger and publish symbol indexer (one-time setup)
+# Clone and build components (one-time setup)
 git clone https://github.com/your-repo/dotnet-cli-output
 cd dotnet-cli-output
-dotnet build src/MarkdownTableLogger
-dotnet publish src/SymbolIndexer -o bin/SymbolIndexer
+./build.sh  # or build.bat on Windows
 
 # Start the symbol indexer daemon (MUST run from repository root for full indexing)
 ./bin/SymbolIndexer/SymbolIndexer start &
 
 # Discover all available modes and options
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;help" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;help" --noconsolelogger
 
 # Use with any dotnet project (LLM-optimized prompt mode)
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
 ```
 
 ## Mode Discovery
 
 **Always start with help** to see current options:
 ```bash
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;help" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;help" --noconsolelogger
 ```
 
 Shows all modes: `projects` (default), `errors`, `types`, `minimal`, `prompt`, `prompt-verbose`  
@@ -36,8 +47,11 @@ And column options: `status`, `description`, `message`, `all`
 **Best for AI-assisted debugging** with complete context and symbol references:
 
 ```bash
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
 ```
+
+**See [PROMPT-EXAMPLE.md](PROMPT-EXAMPLE.md) for complete sample output.**
+
 ```markdown
 # dotnet-cli-output build log
 
@@ -84,18 +98,32 @@ Duration: 0.6s
 
 ```bash
 # Quick status check
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;mode=minimal" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;mode=minimal" --noconsolelogger
 
 # LLM debugging (recommended) - requires daemon running from repo root
 ./bin/SymbolIndexer/SymbolIndexer start &
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
 
 # Human-readable version
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;mode=prompt-verbose" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;mode=prompt-verbose" --noconsolelogger
 
 # Discover all options
-dotnet build --logger:"/path/to/MarkdownTableLogger.dll;help" --noconsolelogger
+dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;help" --noconsolelogger
 ```
+
+## Using in Other Repositories
+
+After running the build script, you can use the logger in any dotnet project:
+
+```bash
+# Copy the bin/ directory to your project or reference it directly
+dotnet build --logger:"/path/to/dotnet-cli-output/bin/MarkdownTableLogger/MarkdownTableLogger.dll;mode=prompt" --noconsolelogger
+
+# For optimal symbol resolution, also copy and start the SymbolIndexer
+/path/to/dotnet-cli-output/bin/SymbolIndexer/SymbolIndexer start &
+```
+
+The build scripts make it very easy for other repositories to use this code for its intended purpose.
 
 ## Symbol Indexer Integration
 
