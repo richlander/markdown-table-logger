@@ -53,10 +53,10 @@ Duration: 0.6s
 
 ## Build Errors
 
-| File | Line | Col | Code | Anchor | Lines |
-|------|------|-----|------|--------|-------|
-| Program.cs | 42 | 15 | CS0103 | #programcs4215 | 27-42 |
-| Utils.cs   | 15 | 9  | CS1061 | #utilscs159 | 44-58 |
+| File | Line | Col | Code | Section | Lines |
+|------|------|-----|------|---------|-------|
+| Program.cs | 42 | 15 | CS0103 | Program.cs:42:15 | 27-42 |
+| Utils.cs   | 15 | 9  | CS1061 | Utils.cs:15:9 | 44-58 |
 
 ### Program.cs:42:15
 
@@ -163,9 +163,9 @@ jq 'group_by(.code) | map({code: .[0].code, count: length, avgCol: (map(.column)
 
 ## Enhanced Table Navigation
 
-The prompt mode now includes **Anchor** and **Lines** columns for precise document navigation:
+The prompt mode now includes **Section** and **Lines** columns for precise document navigation:
 
-- **Anchor**: GitHub-compatible anchor link (e.g., `#programcs4215`)
+- **Section**: Error identifier matching the document section heading (e.g., `test-project/Program.cs:11:27`)
 - **Lines**: Exact line range in the prompt document (e.g., `27-42`)
 
 **LLM Usage Example:**
@@ -184,11 +184,13 @@ sed -n '27,42p' dotnet-build-prompt.md
 Prompt mode also generates `*-enhanced.json` files with anchor and line references:
 ```json
 {
-  "file": "Program.cs",
-  "line": 42,
-  "code": "CS0103", 
-  "anchor": "#programcs4215",
-  "lines": "27-42"
+  "file": "test-project/Program.cs",
+  "line": 11,
+  "column": 27,
+  "code": "CS0103",
+  "message": "The name 'undefinedVariable' does not exist in the current context",
+  "anchor": "#test-projectprogramcs1127",
+  "lines": "29-50"
 }
 ```
 

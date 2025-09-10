@@ -296,6 +296,9 @@ public class MarkdownTableBuildLogger : Logger
             // Also generate basic JSON diagnostics for backward compatibility
             _outputGenerator.WriteErrorDiagnostics(_diagnostics, "dotnet-build-errors");
         }
+        
+        // Generate index files and move them to parent _logs directory
+        _outputGenerator.WriteIndexFiles(_projectResults, _diagnostics, _buildStartTime, _buildDuration);
     }
 
     private void WriteConsoleOutput()

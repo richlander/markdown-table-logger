@@ -1,10 +1,10 @@
 # dotnet-cli-output build log
 
 Command: /usr/local/share/dotnet/sdk/10.0.100-rc.1.25451.107/dotnet.dll build test-project --noconsolelogger
-Time: 2025-09-09T22:57:50
+Time: 2025-09-10T10:33:58
 Duration: 0.5s
 
-This document contains build results in markdown tables. A peephole view for each error is also provided to aid comprehension of the problem. The first two sections are intended to be read sequentially. The third section can be read using `tail`/`head` or with `sed` using the `Anchor` and `Lines` ranges in the "Build Errors" table, enabling random access.
+This document contains build results in markdown tables, in the 'Projects' and 'Build Errors' sections. A peephole view for each error is also provided to aid comprehension of the problem, in the 'Error Details' section. The first two sections are intended to be read sequentially. The third section can be read using `tail`/`head` or with `sed` using the `Anchor` and `Lines` ranges in the 'Build Errors' table, enabling targeted random access.
 
 ## Projects
 
@@ -14,14 +14,14 @@ This document contains build results in markdown tables. A peephole view for eac
 
 ## Build Errors
 
-| File | Line | Col | Code | Anchor | Lines |
-|------|------|-----|------|--------|-------|
-| test-project/Program.cs | 11 | 27 | CS0103 | #test-projectprogramcs1127 | 29-50 |
-| test-project/Program.cs | 15 | 13 | CS1061 | #test-projectprogramcs1513 | 52-71 |
-| test-project/Program.cs | 18 | 9 | CS0246 | #test-projectprogramcs189 | 73-91 |
-| test-project/Program.cs | 18 | 33 | CS0246 | #test-projectprogramcs1833 | 93-111 |
-| test-project/Program.cs | 24 | 20 | CS0103 | #test-projectprogramcs2420 | 113-135 |
-| test-project/Program.cs | 28 | 16 | CS1998 | #test-projectprogramcs2816 | 137-158 |
+| File | Line | Col | Code | Section | Lines |
+|------|------|-----|------|---------|-------|
+| test-project/Program.cs | 11 | 27 | CS0103 | test-project/Program.cs:11:27 | 29-50 |
+| test-project/Program.cs | 15 | 13 | CS1061 | test-project/Program.cs:15:13 | 52-71 |
+| test-project/Program.cs | 18 | 9 | CS0246 | test-project/Program.cs:18:9 | 73-91 |
+| test-project/Program.cs | 18 | 33 | CS0246 | test-project/Program.cs:18:33 | 93-111 |
+| test-project/Program.cs | 24 | 20 | CS0103 | test-project/Program.cs:24:20 | 113-135 |
+| test-project/Program.cs | 28 | 16 | CS1998 | test-project/Program.cs:28:16 | 137-158 |
 
 ## Error Details
 

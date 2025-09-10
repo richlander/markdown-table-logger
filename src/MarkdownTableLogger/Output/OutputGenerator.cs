@@ -16,6 +16,7 @@ public class OutputGenerator
     private readonly string _logsDirectory;
     private readonly string _buildTimestamp;
     private readonly SymbolIndexerClient _symbolClient;
+    private readonly List<(string fileName, string description, long sizeBytes)> _generatedFiles;
     
     public string LogsDirectory => _logsDirectory;
     
@@ -25,6 +26,7 @@ public class OutputGenerator
         _logsDirectory = Path.Combine("_logs", _buildTimestamp);
         Directory.CreateDirectory(_logsDirectory);
         _symbolClient = new SymbolIndexerClient(new SymbolPidFileManager());
+        _generatedFiles = new List<(string fileName, string description, long sizeBytes)>();
     }
 
     public void WriteProjectResults(List<ProjectResult> results, string baseFileName)
@@ -34,6 +36,9 @@ public class OutputGenerator
         
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
+        
+        TrackGeneratedFile($"{baseFileName}.json", "Project results in JSON format");
+        TrackGeneratedFile($"{baseFileName}.md", "Project results in markdown table format");
     }
 
     public void WriteErrorDiagnostics(List<ErrorDiagnostic> errors, string baseFileName)
@@ -43,12 +48,17 @@ public class OutputGenerator
         
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
+        
+        TrackGeneratedFile($"{baseFileName}.json", "Error diagnostics in JSON format");
+        TrackGeneratedFile($"{baseFileName}.md", "Error diagnostics in markdown table format");
     }
     
     public void WriteEnhancedErrorDiagnostics(List<EnhancedErrorDiagnostic> enhancedErrors, string baseFileName)
     {
         var json = JsonSerializer.Serialize(enhancedErrors, _jsonOptions);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
+        
+        TrackGeneratedFile($"{baseFileName}.json", "Enhanced error diagnostics with anchor and line references");
     }
     
     public void WriteEnhancedErrorsTable(string promptFileName, string outputFileName)
@@ -62,6 +72,8 @@ public class OutputGenerator
             var relativePromptPath = $"{promptFileName}.md"; // Just the filename, relative within same directory
             var enhancedTable = ExtractErrorsTable(promptContent, relativePromptPath);
             File.WriteAllText(outputFilePath, enhancedTable);
+            
+            TrackGeneratedFile($"{outputFileName}.md", "Enhanced errors table with navigation links");
         }
     }
 
@@ -72,6 +84,9 @@ public class OutputGenerator
         
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
+        
+        TrackGeneratedFile($"{baseFileName}.json", "Error type summary in JSON format");
+        TrackGeneratedFile($"{baseFileName}.md", "Error type summary in markdown table format");
     }
 
     public string GenerateProjectResultsMarkdown(List<ProjectResult> results, bool showStatus = false)
@@ -316,7 +331,7 @@ public class OutputGenerator
                 if (line == "| File | Line | Col | Code |" && !tableHeaderFound)
                 {
                     // Replace with enhanced header
-                    result.AppendLine("| File | Line | Col | Code | Anchor | Lines |");
+                    result.AppendLine("| File | Line | Col | Code | Section | Lines |");
                     tableHeaderFound = true;
                     continue;
                 }
@@ -324,7 +339,7 @@ public class OutputGenerator
                 if (line == "|------|------|-----|------|" && !tableSeparatorFound)
                 {
                     // Replace with enhanced separator
-                    result.AppendLine("|------|------|-----|------|--------|-------|");
+                    result.AppendLine("|------|------|-----|------|---------|-------|");
                     tableSeparatorFound = true;
                     continue;
                 }
@@ -346,7 +361,7 @@ public class OutputGenerator
                         if (errorSectionMap.TryGetValue(errorKey, out var sectionInfo))
                         {
                             var (anchor, startLine, endLine) = sectionInfo;
-                            result.AppendLine($"| {file} | {lineNum} | {col} | {code} | {anchor} | {startLine}-{endLine} |");
+                            result.AppendLine($"| {file} | {lineNum} | {col} | {code} | {errorKey} | {startLine}-{endLine} |");
                         }
                         else
                         {
@@ -467,6 +482,9 @@ public class OutputGenerator
         }
         
         File.WriteAllText(filePath, markdown);
+        
+        var description = concise ? "LLM-optimized build results (concise)" : "LLM-optimized build results with detailed error context";
+        TrackGeneratedFile($"{baseFileName}.md", description);
     }
     
     private (string context, int startLine, int endLine) GenerateErrorContextWithRange(ErrorDiagnostic diagnostic, bool concise = false)
@@ -699,5 +717,138 @@ public class OutputGenerator
         var tableContent = string.Join('\n', tableLines);
         var repoRelativeDirectory = GetRepoRelativeDirectory();
         return tableContent + $"\n\nPrompt file: {promptFilePath}\nDirectory: {repoRelativeDirectory}\n";
+    }
+    
+    private void TrackGeneratedFile(string fileName, string description)
+    {
+        var filePath = Path.Combine(_logsDirectory, fileName);
+        var sizeBytes = File.Exists(filePath) ? new FileInfo(filePath).Length : 0;
+        _generatedFiles.Add((fileName, description, sizeBytes));
+    }
+    
+    public void WriteIndexFiles(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration)
+    {
+        // Generate index files
+        var indexMarkdown = GenerateIndexMarkdown(projects, diagnostics, startTime, duration);
+        var indexJson = GenerateIndexJson(projects, diagnostics, startTime, duration);
+        
+        // Write to logs directory first
+        var indexMdPath = Path.Combine(_logsDirectory, "index.md");
+        var indexJsonPath = Path.Combine(_logsDirectory, "index.json");
+        
+        File.WriteAllText(indexMdPath, indexMarkdown);
+        File.WriteAllText(indexJsonPath, indexJson);
+        
+        // Move to parent _logs directory
+        var parentLogsDir = Path.GetDirectoryName(_logsDirectory);
+        var parentIndexMdPath = Path.Combine(parentLogsDir!, "index.md");
+        var parentIndexJsonPath = Path.Combine(parentLogsDir!, "index.json");
+        
+        File.Copy(indexMdPath, parentIndexMdPath, true);
+        File.Copy(indexJsonPath, parentIndexJsonPath, true);
+    }
+    
+    private string GenerateIndexMarkdown(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration)
+    {
+        var sb = new StringBuilder();
+        var repoName = GetRepositoryName();
+        var totalErrors = diagnostics.Count;
+        var totalWarnings = projects.Sum(p => p.Warnings);
+        var buildStatus = totalErrors == 0 ? "✅ Success" : "❌ Failed";
+        
+        sb.AppendLine($"# Latest Build Log Index - {repoName}");
+        sb.AppendLine();
+        sb.AppendLine($"**Build Status:** {buildStatus}  ");
+        sb.AppendLine($"**Timestamp:** {startTime:yyyy-MM-dd HH:mm:ss}  ");
+        sb.AppendLine($"**Duration:** {duration.TotalSeconds:F1}s  ");
+        sb.AppendLine($"**Directory:** `{_buildTimestamp}/`");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Quick Summary");
+        sb.AppendLine();
+        sb.AppendLine($"- **Projects:** {projects.Count}");
+        sb.AppendLine($"- **Errors:** {totalErrors}");
+        sb.AppendLine($"- **Warnings:** {totalWarnings}");
+        sb.AppendLine();
+        
+        sb.AppendLine("## Key Files");
+        sb.AppendLine();
+        sb.AppendLine("| File | Description | Size |");
+        sb.AppendLine("|------|-------------|------|");
+        
+        // Order files by importance for LLMs
+        var priorityFiles = new[]
+        {
+            ("dotnet-build-prompt.md", "LLM-optimized build results with error context"),
+            ("dotnet-build-errors.json", "Structured error data"),
+            ("dotnet-build-projects.json", "Project results summary"),
+            ("dotnet-build-errors.md", "Human-readable errors table")
+        };
+        
+        foreach (var (fileName, description) in priorityFiles)
+        {
+            var fileInfo = _generatedFiles.FirstOrDefault(f => f.fileName == fileName);
+            var size = fileInfo.sizeBytes > 0 ? FormatFileSize(fileInfo.sizeBytes) : "0 B";
+            var fullPath = $"{_buildTimestamp}/{fileName}";
+            sb.AppendLine($"| [{fileName}]({fullPath}) | {description} | {size} |");
+        }
+        
+        sb.AppendLine();
+        sb.AppendLine("## All Generated Files");
+        sb.AppendLine();
+        foreach (var (fileName, description, sizeBytes) in _generatedFiles.OrderBy(f => f.fileName))
+        {
+            var size = FormatFileSize(sizeBytes);
+            var fullPath = $"{_buildTimestamp}/{fileName}";
+            sb.AppendLine($"- [`{fileName}`]({fullPath}) - {description} ({size})");
+        }
+        
+        sb.AppendLine();
+        sb.AppendLine("---");
+        sb.AppendLine($"*Generated by MarkdownTableLogger at {DateTime.Now:yyyy-MM-dd HH:mm:ss}*");
+        
+        return sb.ToString();
+    }
+    
+    private string GenerateIndexJson(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration)
+    {
+        var indexData = new
+        {
+            Repository = GetRepositoryName(),
+            BuildTimestamp = startTime,
+            Duration = duration.TotalSeconds,
+            Directory = _buildTimestamp,
+            Status = new
+            {
+                Success = diagnostics.Count == 0,
+                ErrorCount = diagnostics.Count,
+                WarningCount = projects.Sum(p => p.Warnings),
+                ProjectCount = projects.Count
+            },
+            KeyFiles = new
+            {
+                PromptFile = $"{_buildTimestamp}/dotnet-build-prompt.md",
+                ErrorsJson = $"{_buildTimestamp}/dotnet-build-errors.json",
+                ProjectsJson = $"{_buildTimestamp}/dotnet-build-projects.json",
+                ErrorsMarkdown = $"{_buildTimestamp}/dotnet-build-errors.md"
+            },
+            AllFiles = _generatedFiles.Select(f => new
+            {
+                FileName = f.fileName,
+                Description = f.description,
+                SizeBytes = f.sizeBytes,
+                RelativePath = $"{_buildTimestamp}/{f.fileName}"
+            }).OrderBy(f => f.FileName).ToArray(),
+            GeneratedAt = DateTime.Now
+        };
+        
+        return JsonSerializer.Serialize(indexData, _jsonOptions);
+    }
+    
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
     }
 }
