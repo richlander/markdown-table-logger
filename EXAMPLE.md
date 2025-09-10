@@ -1,10 +1,10 @@
 # dotnet-cli-output build log
 
 Command: /usr/local/share/dotnet/sdk/10.0.100-rc.1.25451.107/dotnet.dll build test-project --noconsolelogger
-Time: 2025-09-09T21:49:56
+Time: 2025-09-09T22:57:50
 Duration: 0.5s
 
-This document contains build results in markdown tables. A peephole view for each error is also provided to aid comprehension of the problem.
+This document contains build results in markdown tables. A peephole view for each error is also provided to aid comprehension of the problem. The first two sections are intended to be read sequentially. The third section can be read using `tail`/`head` or with `sed` using the `Anchor` and `Lines` ranges in the "Build Errors" table, enabling random access.
 
 ## Projects
 
@@ -16,14 +16,21 @@ This document contains build results in markdown tables. A peephole view for eac
 
 | File | Line | Col | Code | Anchor | Lines |
 |------|------|-----|------|--------|-------|
-| test-project/Program.cs | 11 | 27 | CS0103 | #testprojectprogramcs1127 | 27-37 |
-| test-project/Program.cs | 15 | 13 | CS1061 | #testprojectprogramcs1513 | 39-48 |
-| test-project/Program.cs | 18 | 9 | CS0246 | #testprojectprogramcs189 | 50-59 |
-| test-project/Program.cs | 18 | 33 | CS0246 | #testprojectprogramcs1833 | 61-70 |
-| test-project/Program.cs | 24 | 20 | CS0103 | #testprojectprogramcs2420 | 72-82 |
-| test-project/Program.cs | 28 | 16 | CS1998 | #testprojectprogramcs2816 | 84-96 |
+| test-project/Program.cs | 11 | 27 | CS0103 | #test-projectprogramcs1127 | 29-50 |
+| test-project/Program.cs | 15 | 13 | CS1061 | #test-projectprogramcs1513 | 52-71 |
+| test-project/Program.cs | 18 | 9 | CS0246 | #test-projectprogramcs189 | 73-91 |
+| test-project/Program.cs | 18 | 33 | CS0246 | #test-projectprogramcs1833 | 93-111 |
+| test-project/Program.cs | 24 | 20 | CS0103 | #test-projectprogramcs2420 | 113-135 |
+| test-project/Program.cs | 28 | 16 | CS1998 | #test-projectprogramcs2816 | 137-158 |
 
-### test-project/Program.cs:11:27 (lines 7-15):
+## Error Details
+
+### test-project/Program.cs:11:27
+
+- File: test-project/Program.cs
+- Lines: 7-15
+- Error: CS0103
+- Message: The name 'undefinedVariable' does not exist in the current context
 
 ```csharp
 {
@@ -35,7 +42,18 @@ This document contains build results in markdown tables. A peephole view for eac
         str.NonExistentMethod();
 ```
 
-### test-project/Program.cs:15:13 (lines 11-19):
+**Referenced symbols:**
+- `Console` - .NET Libraries (System.Console)
+- `WriteLine` - .NET Libraries
+- `undefinedVariable` - undefined symbol
+
+
+### test-project/Program.cs:15:13
+
+- File: test-project/Program.cs
+- Lines: 11-19
+- Error: CS1061
+- Message: 'string' does not contain a definition for 'NonExistentMethod' and no accessible extension method 'NonExistentMethod' accepting a first argument of type 'string' could be found (are you missing a using directive or an assembly reference?)
 
 ```csharp
         Console.WriteLine(undefinedVariable);
@@ -46,7 +64,17 @@ This document contains build results in markdown tables. A peephole view for eac
         UndefinedType obj = new UndefinedType();
 ```
 
-### test-project/Program.cs:18:9 (lines 14-22):
+**Referenced symbols:**
+- `NonExistentMethod` - undefined symbol
+- `str` - test-project/Program.cs:14,13
+
+
+### test-project/Program.cs:18:9
+
+- File: test-project/Program.cs
+- Lines: 14-22
+- Error: CS0246
+- Message: The type or namespace name 'UndefinedType' could not be found (are you missing a using directive or an assembly reference?)
 
 ```csharp
         var str = "hello";
@@ -57,7 +85,16 @@ This document contains build results in markdown tables. A peephole view for eac
         Console.WriteLine("test", "extra", "args");
 ```
 
-### test-project/Program.cs:18:33 (lines 14-22):
+**Referenced symbols:**
+- `UndefinedType` - undefined symbol
+
+
+### test-project/Program.cs:18:33
+
+- File: test-project/Program.cs
+- Lines: 14-22
+- Error: CS0246
+- Message: The type or namespace name 'UndefinedType' could not be found (are you missing a using directive or an assembly reference?)
 
 ```csharp
         var str = "hello";
@@ -68,7 +105,16 @@ This document contains build results in markdown tables. A peephole view for eac
         Console.WriteLine("test", "extra", "args");
 ```
 
-### test-project/Program.cs:24:20 (lines 21-28):
+**Referenced symbols:**
+- `UndefinedType` - undefined symbol
+
+
+### test-project/Program.cs:24:20
+
+- File: test-project/Program.cs
+- Lines: 21-28
+- Error: CS0103
+- Message: The name 'JsonConvert' does not exist in the current context
 
 ```csharp
         Console.WriteLine("test", "extra", "args");
@@ -80,7 +126,19 @@ This document contains build results in markdown tables. A peephole view for eac
     async Task BadAsyncMethod()
 ```
 
-### test-project/Program.cs:28:16 (lines 24-32):
+**Referenced symbols:**
+- `JsonConvert` - external package (Newtonsoft.Json)
+- `SerializeObject` - external package (Newtonsoft.Json)
+- `test` - undefined symbol
+- `var` - .NET Libraries
+
+
+### test-project/Program.cs:28:16
+
+- File: test-project/Program.cs
+- Lines: 24-32
+- Error: CS1998
+- Message: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread.
 
 ```csharp
         var json = JsonConvert.SerializeObject(new { test = "value" });
@@ -92,6 +150,10 @@ This document contains build results in markdown tables. A peephole view for eac
     }
 }
 ```
+
+**Referenced symbols:**
+- `Task` - .NET Libraries (System.Threading.Tasks)
+
 
 
 
