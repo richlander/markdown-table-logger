@@ -37,12 +37,12 @@ public static class SymbolProtocol
         } while (totalBytesRead < count);
     }
 
-    public static async Task<SymbolQueryRequest> ReadRequestAsync(Stream stream, CancellationToken cancellationToken)
+    public static Task<SymbolQueryRequest> ReadRequestAsync(Stream stream, CancellationToken cancellationToken)
     {
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         var json = ReadLengthPrefixedString(reader);
         var request = JsonSerializer.Deserialize(json, JsonSourceGenerationContext.Default.SymbolQueryRequest);
-        return request ?? throw new InvalidOperationException("Failed to deserialize request");
+        return Task.FromResult(request ?? throw new InvalidOperationException("Failed to deserialize request"));
     }
 
     public static async Task WriteRequestAsync(Stream stream, SymbolQueryRequest request, CancellationToken cancellationToken)
@@ -53,12 +53,12 @@ public static class SymbolProtocol
         await writer.BaseStream.FlushAsync(cancellationToken);
     }
 
-    public static async Task<SymbolQueryResponse> ReadResponseAsync(Stream stream, CancellationToken cancellationToken)
+    public static Task<SymbolQueryResponse> ReadResponseAsync(Stream stream, CancellationToken cancellationToken)
     {
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
         var json = ReadLengthPrefixedString(reader);
         var response = JsonSerializer.Deserialize(json, JsonSourceGenerationContext.Default.SymbolQueryResponse);
-        return response ?? throw new InvalidOperationException("Failed to deserialize response");
+        return Task.FromResult(response ?? throw new InvalidOperationException("Failed to deserialize response"));
     }
 
     public static async Task WriteResponseAsync(Stream stream, SymbolQueryResponse response, CancellationToken cancellationToken)
