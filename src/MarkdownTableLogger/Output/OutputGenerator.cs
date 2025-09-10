@@ -183,7 +183,7 @@ public class OutputGenerator
         sb.AppendLine($"Time: {startTime:yyyy-MM-ddTHH:mm:ss}");
         sb.AppendLine($"Duration: {duration.TotalSeconds:F1}s");
         sb.AppendLine();
-        sb.AppendLine("This document contains build results in markdown tables. A peephole view for each error is also provided to aid comprehension of the problem.");
+        sb.AppendLine("This document contains build results in markdown tables, in the 'Projects' and 'Build Errors' sections. A peephole view for each error is also provided to aid comprehension of the problem, in the 'Error Details' section. The first two sections are intended to be read sequentially. The third section can be read using `tail`/`head` or with `sed` using the `Anchor` and `Lines` ranges in the 'Build Errors' table, enabling targeted random access.");
         sb.AppendLine();
         
         // Projects table
@@ -213,6 +213,9 @@ public class OutputGenerator
         // Context blocks for each error (only if there are errors)
         if (diagnostics.Count > 0)
         {
+            sb.AppendLine("## Error Details");
+            sb.AppendLine();
+            
             foreach (var diagnostic in diagnostics)
             {
                 var (context, startLine, endLine) = GenerateErrorContextWithRange(diagnostic, concise);
@@ -456,14 +459,9 @@ public class OutputGenerator
         var markdown = GeneratePromptDocument(projects, diagnostics, startTime, duration, command, concise);
         var filePath = Path.Combine(_logsDirectory, $"{baseFileName}.md");
         
-        // Add footer with prompt file path
+        // Generate enhanced JSON diagnostics with anchor and line references if there are errors
         if (diagnostics.Count > 0)
         {
-            var relativePath = $"{baseFileName}.md";
-            var repoRelativeDirectory = GetRepoRelativeDirectory();
-            markdown = markdown.TrimEnd() + $"\n\nPrompt file: {relativePath}\nDirectory: {repoRelativeDirectory}\n";
-            
-            // Also generate enhanced JSON diagnostics with anchor and line references
             var enhancedDiagnostics = GenerateEnhancedDiagnostics(markdown, diagnostics);
             WriteEnhancedErrorDiagnostics(enhancedDiagnostics, "dotnet-build-errors-with-lookup-ranges-enhanced");
         }
@@ -562,9 +560,8 @@ public class OutputGenerator
         try
         {
             // Query symbols at the error location
-            // Convert path to relative path for indexer (remove directory prefixes like "test-project/")
-            var fileName = Path.GetFileName(diagnostic.File);
-            var symbols = _symbolClient.QuerySymbolsAsync(fileName, diagnostic.Line, 0).Result;
+            // Use the full relative path as provided in the diagnostic
+            var symbols = _symbolClient.QuerySymbolsAsync(diagnostic.File, diagnostic.Line, 0).Result;
             
             if (symbols.Count == 0)
                 return "";
