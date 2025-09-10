@@ -198,7 +198,19 @@ public class OutputGenerator
         sb.AppendLine($"Time: {startTime:yyyy-MM-ddTHH:mm:ss}");
         sb.AppendLine($"Duration: {duration.TotalSeconds:F1}s");
         sb.AppendLine();
-        sb.AppendLine("This document contains build results in markdown tables, in the 'Projects' and 'Build Errors' sections. A peephole view for each error is also provided to aid comprehension of the problem, in the 'Error Details' section. The first two sections are intended to be read sequentially. The third section can be read using `tail`/`head` or with `sed` using the `Anchor` and `Lines` ranges in the 'Build Errors' table, enabling targeted random access.");
+        sb.AppendLine("This document contains build results in markdown tables. For efficient navigation:");
+        sb.AppendLine();
+        sb.AppendLine("**Sequential reading:** Review 'Projects' and 'Build Errors' sections first");
+        sb.AppendLine();
+        sb.AppendLine("**Random access:** Jump directly to specific errors using the 'Build Errors' table:");
+        sb.AppendLine("- Section column: Use as anchor with `sed -n '/### anchor/,/^###/p'` to extract detailed analysis");
+        sb.AppendLine("- Lines column: Use as range with `sed -n 'start,end p'` to extract source context");
+        sb.AppendLine();
+        sb.AppendLine("Example: For error Program.cs:42:15 with lines 27-42:");
+        sb.AppendLine("```bash");
+        sb.AppendLine("sed -n '/### Program.cs:42:15/,/^###/p' build.log  # Get error details");
+        sb.AppendLine("sed -n '27,42p' build.log                         # Get source context");
+        sb.AppendLine("```");
         sb.AppendLine();
         
         // Projects table
