@@ -52,7 +52,7 @@ dotnet build --logger:"bin/MarkdownTableLogger/MarkdownTableLogger.dll;mode=prom
 
 **See [PROMPT-EXAMPLE.md](PROMPT-EXAMPLE.md) for complete sample output.**
 
-```markdown
+````markdown
 # dotnet-cli-output build log
 
 Command: dotnet build
@@ -92,7 +92,7 @@ Duration: 0.6s
 - `WriteLine` - .NET Libraries
 - `undefinedVar` - undefined symbol
 - `data` - Program.cs:39,13
-```
+````
 
 ## Common Workflows
 
