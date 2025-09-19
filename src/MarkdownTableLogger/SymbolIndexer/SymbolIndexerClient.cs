@@ -41,9 +41,10 @@ public class SymbolIndexerClient
             
             return response.Symbols ?? new List<SymbolResult>();
         }
-        catch
+        catch (Exception ex)
         {
-            // Any communication error - return empty results silently
+            // Temporary debugging: log the error instead of swallowing it
+            Console.Error.WriteLine($"[DEBUG] SymbolIndexer error: {ex.Message}");
             return new List<SymbolResult>();
         }
     }

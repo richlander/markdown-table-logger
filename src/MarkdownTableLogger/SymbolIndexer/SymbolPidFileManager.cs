@@ -61,8 +61,8 @@ public class SymbolPidFileManager
         if (!string.IsNullOrEmpty(directory))
             return directory;
 
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(userProfile, ".dotnet", "pids", "build");
+        var currentDir = Directory.GetCurrentDirectory();
+        return Path.Combine(currentDir, ".dotnet", "pids", "build");
     }
 
     public SymbolPidFile? FindRunningServer()

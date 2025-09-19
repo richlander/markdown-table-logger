@@ -15,7 +15,7 @@ public class OutputGenerator
     
     private readonly string _logsDirectory;
     private readonly string _buildTimestamp;
-    private readonly SymbolIndexerClient _symbolClient;
+    private readonly SymbolIndexerProcessClient _symbolClient;
     private readonly List<(string fileName, string description, long sizeBytes)> _generatedFiles;
     
     public string LogsDirectory => _logsDirectory;
@@ -25,30 +25,30 @@ public class OutputGenerator
         _buildTimestamp = DateTime.Now.ToString("yyyy-MM-ddTHH-mm-ss");
         _logsDirectory = Path.Combine("_logs", _buildTimestamp);
         Directory.CreateDirectory(_logsDirectory);
-        _symbolClient = new SymbolIndexerClient(new SymbolPidFileManager());
+        _symbolClient = new SymbolIndexerProcessClient();
         _generatedFiles = new List<(string fileName, string description, long sizeBytes)>();
     }
 
-    public void WriteProjectResults(List<ProjectResult> results, string baseFileName)
+    public void WriteProjectResults(List<ProjectResult> results, string baseFileName, bool showStatus = false)
     {
         var json = JsonSerializer.Serialize(results, _jsonOptions);
-        var markdown = GenerateProjectResultsMarkdown(results);
-        
+        var markdown = GenerateProjectResultsMarkdown(results, showStatus);
+
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
-        
+
         TrackGeneratedFile($"{baseFileName}.json", "Project results in JSON format");
         TrackGeneratedFile($"{baseFileName}.md", "Project results in markdown table format");
     }
 
-    public void WriteErrorDiagnostics(List<ErrorDiagnostic> errors, string baseFileName)
+    public void WriteErrorDiagnostics(List<ErrorDiagnostic> errors, string baseFileName, bool showMessage = true)
     {
         var json = JsonSerializer.Serialize(errors, _jsonOptions);
-        var markdown = GenerateErrorDiagnosticsMarkdown(errors);
-        
+        var markdown = GenerateErrorDiagnosticsMarkdown(errors, showMessage);
+
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
-        
+
         TrackGeneratedFile($"{baseFileName}.json", "Error diagnostics in JSON format");
         TrackGeneratedFile($"{baseFileName}.md", "Error diagnostics in markdown table format");
     }
@@ -77,14 +77,14 @@ public class OutputGenerator
         }
     }
 
-    public void WriteErrorTypeSummary(List<ErrorTypeSummary> summary, string baseFileName)
+    public void WriteErrorTypeSummary(List<ErrorTypeSummary> summary, string baseFileName, bool showDescription = true)
     {
         var json = JsonSerializer.Serialize(summary, _jsonOptions);
-        var markdown = GenerateErrorTypeSummaryMarkdown(summary);
-        
+        var markdown = GenerateErrorTypeSummaryMarkdown(summary, showDescription);
+
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.json"), json);
         File.WriteAllText(Path.Combine(_logsDirectory, $"{baseFileName}.md"), markdown);
-        
+
         TrackGeneratedFile($"{baseFileName}.json", "Error type summary in JSON format");
         TrackGeneratedFile($"{baseFileName}.md", "Error type summary in markdown table format");
     }
@@ -129,8 +129,9 @@ public class OutputGenerator
             
             foreach (var error in errors)
             {
+                var displayPath = GetDisplayPath(error.File);
                 var message = TruncateMessage(error.Message ?? "", 50);
-                sb.AppendLine($"| {error.File} | {error.Line} | {error.Column} | {error.Code} | {message} |");
+                sb.AppendLine($"| {displayPath} | {error.Line} | {error.Column} | {error.Code} | {message} |");
             }
         }
         else
@@ -140,7 +141,8 @@ public class OutputGenerator
             
             foreach (var error in errors)
             {
-                sb.AppendLine($"| {error.File} | {error.Line} | {error.Column} | {error.Code} |");
+                var displayPath = GetDisplayPath(error.File);
+                sb.AppendLine($"| {displayPath} | {error.Line} | {error.Column} | {error.Code} |");
             }
         }
         
@@ -233,7 +235,8 @@ public class OutputGenerator
         
         foreach (var diagnostic in diagnostics)
         {
-            sb.AppendLine($"| {diagnostic.File} | {diagnostic.Line} | {diagnostic.Column} | {diagnostic.Code} |");
+            var displayPath = GetDisplayPath(diagnostic.File);
+            sb.AppendLine($"| {displayPath} | {diagnostic.Line} | {diagnostic.Column} | {diagnostic.Code} |");
         }
         sb.AppendLine();
         
@@ -246,11 +249,12 @@ public class OutputGenerator
             foreach (var diagnostic in diagnostics)
             {
                 var (context, startLine, endLine) = GenerateErrorContextWithRange(diagnostic, concise);
-                
+                var displayPath = GetDisplayPath(diagnostic.File);
+
                 // Clean header with structured metadata
-                sb.AppendLine($"### {diagnostic.File}:{diagnostic.Line}:{diagnostic.Column}");
+                sb.AppendLine($"### {displayPath}:{diagnostic.Line}:{diagnostic.Column}");
                 sb.AppendLine();
-                sb.AppendLine($"- File: {diagnostic.File}");
+                sb.AppendLine($"- File: {displayPath}");
                 sb.AppendLine($"- Lines: {startLine}-{endLine}");
                 sb.AppendLine($"- Error: {diagnostic.Code}");
                 if (!string.IsNullOrEmpty(diagnostic.Message))
@@ -261,7 +265,7 @@ public class OutputGenerator
                 sb.AppendLine("```csharp");
                 sb.AppendLine(context);
                 sb.AppendLine("```");
-                
+
                 // Add symbol references section
                 var symbolsSection = GenerateSymbolReferencesSection(diagnostic);
                 if (!string.IsNullOrEmpty(symbolsSection))
@@ -269,7 +273,7 @@ public class OutputGenerator
                     sb.AppendLine();
                     sb.AppendLine(symbolsSection);
                 }
-                
+
                 sb.AppendLine();
             }
         }
@@ -448,13 +452,14 @@ public class OutputGenerator
         
         foreach (var diagnostic in originalDiagnostics)
         {
-            var errorKey = $"{diagnostic.File}:{diagnostic.Line}:{diagnostic.Column}";
-            
+            var displayPath = GetDisplayPath(diagnostic.File);
+            var errorKey = $"{displayPath}:{diagnostic.Line}:{diagnostic.Column}";
+
             if (errorSectionMap.TryGetValue(errorKey, out var sectionInfo))
             {
                 var (anchor, lineRange) = sectionInfo;
                 enhancedDiagnostics.Add(new EnhancedErrorDiagnostic(
-                    diagnostic.File,
+                    displayPath,
                     diagnostic.Line,
                     diagnostic.Column,
                     diagnostic.Code,
@@ -467,7 +472,7 @@ public class OutputGenerator
             {
                 // Fallback without enhancement
                 enhancedDiagnostics.Add(new EnhancedErrorDiagnostic(
-                    diagnostic.File,
+                    displayPath,
                     diagnostic.Line,
                     diagnostic.Column,
                     diagnostic.Code,
@@ -590,8 +595,9 @@ public class OutputGenerator
         try
         {
             // Query symbols at the error location
-            // Use the full relative path as provided in the diagnostic
-            var symbols = _symbolClient.QuerySymbolsAsync(diagnostic.File, diagnostic.Line, 0).Result;
+            // Use relative path and actual column position for better symbol resolution
+            var relativePath = GetDisplayPath(diagnostic.File);
+            var symbols = _symbolClient.QuerySymbolsAsync(relativePath, diagnostic.Line, diagnostic.Column).Result;
             
             if (symbols.Count == 0)
                 return "";
@@ -652,6 +658,28 @@ public class OutputGenerator
         catch
         {
             return fullPath;
+        }
+    }
+
+    private static string GetDisplayPath(string filePath)
+    {
+        // Convert full path to workspace-relative path for display
+        if (string.IsNullOrEmpty(filePath)) return "Unknown";
+
+        try
+        {
+            var currentDir = Directory.GetCurrentDirectory();
+            var relativePath = Path.GetRelativePath(currentDir, filePath);
+
+            // If the path goes outside the workspace, just show the filename
+            if (relativePath.StartsWith(".."))
+                return Path.GetFileName(filePath);
+
+            return relativePath.Replace('\\', '/'); // Use forward slashes for consistency
+        }
+        catch
+        {
+            return Path.GetFileName(filePath);
         }
     }
 

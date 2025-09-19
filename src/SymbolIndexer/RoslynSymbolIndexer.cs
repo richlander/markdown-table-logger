@@ -362,6 +362,10 @@ public class RoslynSymbolIndexer : ISymbolIndexer
             "StringBuilder", "List", "Dictionary", "Array", "Exception", "ArgumentException",
             "InvalidOperationException", "NotImplementedException", "NotSupportedException",
             "Guid", "Uri", "Version", "Encoding", "Regex", "Math", "Random", "Convert",
+
+            // IO types
+            "Stream", "FileStream", "MemoryStream", "StreamReader", "StreamWriter", "TextReader", "TextWriter",
+            "BinaryReader", "BinaryWriter", "StringReader", "StringWriter",
             
             // Collections
             "IEnumerable", "ICollection", "IList", "IDictionary", "ISet", "HashSet", "LinkedList",

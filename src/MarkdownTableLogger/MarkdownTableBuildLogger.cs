@@ -16,7 +16,8 @@ public class MarkdownTableBuildLogger : Logger
     private readonly OutputGenerator _outputGenerator = new();
     private readonly TextWriter _originalOut = Console.Out;
     private readonly TextWriter _originalError = Console.Error;
-    private string _mode = "projects"; // Default mode
+    private string _mode = "auto"; // Default mode
+    private bool _modeExplicitlySet = false;
     private bool _showHelpOnly = false;
     private bool _showStatus = false; // Status column (redundant with error/warning counts) - DEFAULT OFF
     private bool _showDescription = false; // Description column for error types - DEFAULT OFF (LLM-first)
@@ -52,6 +53,7 @@ public class MarkdownTableBuildLogger : Logger
                 if (parts.Length == 2 && parts[0].Trim().ToLower() == "mode")
                 {
                     _mode = parts[1].Trim().ToLower();
+                    _modeExplicitlySet = true;
                 }
                 else if (parts.Length == 2 && parts[0].Trim().ToLower() == "columns")
                 {
@@ -108,7 +110,8 @@ public class MarkdownTableBuildLogger : Logger
     {
         Console.WriteLine("MarkdownTableLogger Modes:");
         Console.WriteLine();
-        Console.WriteLine("projects   - Project results table (default)");
+        Console.WriteLine("auto       - Projects table if no errors, errors table if errors exist (default)");
+        Console.WriteLine("projects   - Project results table");
         Console.WriteLine("errors     - Error/warning diagnostics table only");
         Console.WriteLine("types      - Error/warning type summary only");
         Console.WriteLine("minimal    - Single line status only");
@@ -141,7 +144,8 @@ public class MarkdownTableBuildLogger : Logger
     {
         _workspaceRoot ??= FindWorkspaceRoot(e.ProjectFile);
         var projectName = ExtractProjectName(e.ProjectFile);
-        
+
+
         _currentProjectErrors[projectName] = 0;
         _currentProjectWarnings[projectName] = 0;
     }
@@ -151,27 +155,48 @@ public class MarkdownTableBuildLogger : Logger
         var projectName = ExtractProjectName(e.ProjectFile);
         var errorCount = _currentProjectErrors.GetValueOrDefault(projectName, 0);
         var warningCount = _currentProjectWarnings.GetValueOrDefault(projectName, 0);
-        
-        // Only add the final result - remove any previous entries for this project
-        _projectResults.RemoveAll(p => p.Project == projectName);
-        
-        _projectResults.Add(new ProjectResult(
-            Project: projectName,
-            Errors: errorCount,
-            Warnings: warningCount,
-            Succeeded: e.Succeeded
-        ));
+
+
+        // Find existing entry for this project
+        var existingResult = _projectResults.FirstOrDefault(p => p.Project == projectName);
+
+        if (existingResult != null)
+        {
+            // Keep the result with the highest error count
+            // This handles the case where projects finish multiple times during incremental builds
+            if (errorCount > existingResult.Errors ||
+                (errorCount == existingResult.Errors && warningCount > existingResult.Warnings))
+            {
+                _projectResults.RemoveAll(p => p.Project == projectName);
+                _projectResults.Add(new ProjectResult(
+                    Project: projectName,
+                    Errors: errorCount,
+                    Warnings: warningCount,
+                    Succeeded: e.Succeeded
+                ));
+            }
+            // If current result has no errors/warnings and existing has more, keep existing
+        }
+        else
+        {
+            // First time seeing this project
+            _projectResults.Add(new ProjectResult(
+                Project: projectName,
+                Errors: errorCount,
+                Warnings: warningCount,
+                Succeeded: e.Succeeded
+            ));
+        }
     }
 
     private void OnErrorRaised(object sender, BuildErrorEventArgs e)
     {
         var projectName = ExtractProjectName(e.ProjectFile);
         _currentProjectErrors[projectName] = _currentProjectErrors.GetValueOrDefault(projectName, 0) + 1;
-        
-        var relativePath = MakeWorkspaceRelative(e.File);
-        
+
+        // Store the full file path for file reading, display logic will handle relative paths
         _diagnostics.Add(new ErrorDiagnostic(
-            File: relativePath,
+            File: e.File ?? "Unknown",
             Line: e.LineNumber,
             Column: e.ColumnNumber,
             Code: e.Code ?? "Unknown",
@@ -183,11 +208,10 @@ public class MarkdownTableBuildLogger : Logger
     {
         var projectName = ExtractProjectName(e.ProjectFile);
         _currentProjectWarnings[projectName] = _currentProjectWarnings.GetValueOrDefault(projectName, 0) + 1;
-        
-        var relativePath = MakeWorkspaceRelative(e.File);
-        
+
+        // Store the full file path for file reading, display logic will handle relative paths
         _diagnostics.Add(new ErrorDiagnostic(
-            File: relativePath,
+            File: e.File ?? "Unknown",
             Line: e.LineNumber,
             Column: e.ColumnNumber,
             Code: e.Code ?? "Unknown",
@@ -264,9 +288,9 @@ public class MarkdownTableBuildLogger : Logger
     private void GenerateOutputFiles()
     {
         // Always generate project results
-        _outputGenerator.WriteProjectResults(_projectResults, "dotnet-build-projects");
-        
-        // Always generate diagnostic type summary if there are errors or warnings  
+        _outputGenerator.WriteProjectResults(_projectResults, "dotnet-build-projects", _showStatus);
+
+        // Always generate diagnostic type summary if there are errors or warnings
         if (_diagnostics.Count > 0)
         {
             var diagnosticTypeSummary = _diagnostics
@@ -278,8 +302,8 @@ public class MarkdownTableBuildLogger : Logger
                 ))
                 .OrderByDescending(e => e.Count)
                 .ToList();
-            
-            _outputGenerator.WriteErrorTypeSummary(diagnosticTypeSummary, "dotnet-build-error-types");
+
+            _outputGenerator.WriteErrorTypeSummary(diagnosticTypeSummary, "dotnet-build-error-types", _showDescription);
             
             // Always generate prompt document (source of truth for enhanced table)
             _outputGenerator.WritePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, true, "dotnet-build-prompt");
@@ -294,7 +318,7 @@ public class MarkdownTableBuildLogger : Logger
             _outputGenerator.WriteEnhancedErrorsTable("dotnet-build-prompt", "dotnet-build-errors-with-lookup-ranges");
             
             // Also generate basic JSON diagnostics for backward compatibility
-            _outputGenerator.WriteErrorDiagnostics(_diagnostics, "dotnet-build-errors");
+            _outputGenerator.WriteErrorDiagnostics(_diagnostics, "dotnet-build-errors", _showMessage);
         }
         
         // Generate index files and move them to parent _logs directory
@@ -307,6 +331,9 @@ public class MarkdownTableBuildLogger : Logger
         
         switch (_mode)
         {
+            case "auto":
+                WriteAutoMode();
+                break;
             case "projects":
                 WriteProjectsMode();
                 break;
@@ -326,14 +353,14 @@ public class MarkdownTableBuildLogger : Logger
                 WritePromptVerboseMode();
                 break;
             default:
-                WriteProjectsMode();
+                WriteAutoMode(); // Default to auto behavior
                 break;
         }
     }
 
     private void WriteProjectsMode()
     {
-        // Read from generated file
+        // Always show projects table when explicitly requested
         var filePath = Path.Combine(_outputGenerator.LogsDirectory, "dotnet-build-projects.md");
         if (File.Exists(filePath))
         {
@@ -342,6 +369,19 @@ public class MarkdownTableBuildLogger : Logger
         else
         {
             Console.WriteLine("No project results available.");
+        }
+    }
+
+    private void WriteAutoMode()
+    {
+        // Auto mode: show projects table if no errors, errors table if errors exist
+        if (_diagnostics.Count > 0)
+        {
+            WriteErrorsMode(); // Show error ranges when there are errors
+        }
+        else
+        {
+            WriteProjectsMode(); // Show projects table when no errors
         }
     }
 
@@ -395,7 +435,9 @@ public class MarkdownTableBuildLogger : Logger
         var filePath = Path.Combine(_outputGenerator.LogsDirectory, "dotnet-build-prompt.md");
         if (File.Exists(filePath))
         {
-            Console.WriteLine(File.ReadAllText(filePath));
+            var content = File.ReadAllText(filePath);
+            Console.WriteLine(content);
+
         }
         else
         {
