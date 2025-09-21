@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using MarkdownTableLogger.Models;
 using MarkdownTableLogger.SymbolIndexer;
 
@@ -19,6 +20,7 @@ public class OutputGenerator
     private readonly List<(string fileName, string description, long sizeBytes)> _generatedFiles;
     
     public string LogsDirectory => _logsDirectory;
+    public string BuildId => _buildTimestamp;
     
     public OutputGenerator()
     {
@@ -177,16 +179,16 @@ public class OutputGenerator
         return sb.ToString();
     }
 
-    public string GeneratePromptDocument(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false)
+    public async Task<string> GeneratePromptDocumentAsync(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false)
     {
         // Pass 1: Generate the complete document with current table structure
-        var pass1Document = GeneratePromptDocumentPass1(projects, diagnostics, startTime, duration, command, concise);
-        
+        var pass1Document = await GeneratePromptDocumentPass1Async(projects, diagnostics, startTime, duration, command, concise);
+
         // Pass 2: Enhance the errors table with Anchor and Lines columns
         return EnhanceErrorsTableWithLineReferences(pass1Document, diagnostics);
     }
     
-    private string GeneratePromptDocumentPass1(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false)
+    private async Task<string> GeneratePromptDocumentPass1Async(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false)
     {
         var sb = new StringBuilder();
         
@@ -267,7 +269,7 @@ public class OutputGenerator
                 sb.AppendLine("```");
 
                 // Add symbol references section
-                var symbolsSection = GenerateSymbolReferencesSection(diagnostic);
+                var symbolsSection = await GenerateSymbolReferencesSectionAsync(diagnostic);
                 if (!string.IsNullOrEmpty(symbolsSection))
                 {
                     sb.AppendLine();
@@ -486,9 +488,9 @@ public class OutputGenerator
         return enhancedDiagnostics;
     }
     
-    public void WritePromptDocument(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false, string baseFileName = "dotnet-build-prompt")
+    public async Task WritePromptDocumentAsync(List<ProjectResult> projects, List<ErrorDiagnostic> diagnostics, DateTime startTime, TimeSpan duration, string? command = null, bool concise = false, string baseFileName = "dotnet-build-prompt")
     {
-        var markdown = GeneratePromptDocument(projects, diagnostics, startTime, duration, command, concise);
+        var markdown = await GeneratePromptDocumentAsync(projects, diagnostics, startTime, duration, command, concise);
         var filePath = Path.Combine(_logsDirectory, $"{baseFileName}.md");
         
         // Generate enhanced JSON diagnostics with anchor and line references if there are errors
@@ -590,27 +592,27 @@ public class OutputGenerator
                trimmed.StartsWith("// Example");
     }
 
-    private string GenerateSymbolReferencesSection(ErrorDiagnostic diagnostic)
+    private async Task<string> GenerateSymbolReferencesSectionAsync(ErrorDiagnostic diagnostic)
     {
         try
         {
             // Query symbols at the error location
             // Use relative path and actual column position for better symbol resolution
             var relativePath = GetDisplayPath(diagnostic.File);
-            var symbols = _symbolClient.QuerySymbolsAsync(relativePath, diagnostic.Line, diagnostic.Column).Result;
-            
+            var symbols = await _symbolClient.QuerySymbolsAsync(relativePath, diagnostic.Line, diagnostic.Column);
+
             if (symbols.Count == 0)
                 return "";
-            
+
             var sb = new StringBuilder();
             sb.AppendLine("**Referenced symbols:**");
-            
+
             foreach (var symbol in symbols.Take(10)) // Limit to 10 symbols to avoid clutter
             {
                 var symbolInfo = FormatSymbolInfo(symbol);
                 sb.AppendLine($"- `{symbol.Name}` - {symbolInfo}");
             }
-            
+
             return sb.ToString();
         }
         catch

@@ -3,6 +3,7 @@ using Microsoft.Build.Utilities;
 using MarkdownTableLogger.Models;
 using MarkdownTableLogger.Output;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace MarkdownTableLogger;
 
@@ -258,7 +259,19 @@ public class MarkdownTableBuildLogger : Logger
         
         try
         {
-            GenerateOutputFiles();
+            // Run async symbol resolution in background to avoid blocking the build
+            System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    await GenerateOutputFilesAsync();
+                }
+                catch (Exception asyncEx)
+                {
+                    // Log async errors separately since we can't propagate them
+                    WriteLineWithColor($"MarkdownTableLogger async error: {asyncEx.Message}", ConsoleColor.Red);
+                }
+            });
             WriteConsoleOutput();
         }
         catch (Exception ex)
@@ -285,7 +298,7 @@ public class MarkdownTableBuildLogger : Logger
         return suppressPatterns.Any(pattern => message.Contains(pattern, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void GenerateOutputFiles()
+    private async System.Threading.Tasks.Task GenerateOutputFilesAsync()
     {
         // Always generate project results
         _outputGenerator.WriteProjectResults(_projectResults, "dotnet-build-projects", _showStatus);
@@ -306,12 +319,12 @@ public class MarkdownTableBuildLogger : Logger
             _outputGenerator.WriteErrorTypeSummary(diagnosticTypeSummary, "dotnet-build-error-types", _showDescription);
             
             // Always generate prompt document (source of truth for enhanced table)
-            _outputGenerator.WritePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, true, "dotnet-build-prompt");
-            
+            await _outputGenerator.WritePromptDocumentAsync(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, true, "dotnet-build-prompt");
+
             // Generate verbose prompt document if requested
             if (_mode == "prompt-verbose")
             {
-                _outputGenerator.WritePromptDocument(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, false, "dotnet-build-prompt-verbose");
+                await _outputGenerator.WritePromptDocumentAsync(_projectResults, _diagnostics, _buildStartTime, _buildDuration, _buildCommand, false, "dotnet-build-prompt-verbose");
             }
             
             // Extract enhanced errors table from prompt document for standalone use
@@ -320,9 +333,43 @@ public class MarkdownTableBuildLogger : Logger
             // Also generate basic JSON diagnostics for backward compatibility
             _outputGenerator.WriteErrorDiagnostics(_diagnostics, "dotnet-build-errors", _showMessage);
         }
-        
+
         // Generate index files and move them to parent _logs directory
         _outputGenerator.WriteIndexFiles(_projectResults, _diagnostics, _buildStartTime, _buildDuration);
+
+        WriteManifestEntry();
+    }
+
+    private void WriteManifestEntry()
+    {
+        try
+        {
+            var git = GitMetadataCollector.Collect();
+            var logsRoot = Path.GetDirectoryName(_outputGenerator.LogsDirectory) ?? "_logs";
+            var entry = new LogManifestEntry
+            {
+                Id = _outputGenerator.BuildId,
+                Timestamp = _buildStartTime,
+                DurationSeconds = _buildDuration.TotalSeconds,
+                Success = _diagnostics.Count == 0,
+                ErrorCount = _diagnostics.Count,
+                WarningCount = _projectResults.Sum(p => p.Warnings),
+                ProjectCount = _projectResults.Count,
+                Mode = _mode,
+                Command = _buildCommand ?? string.Empty,
+                Directory = _outputGenerator.BuildId,
+                PromptFile = $"{_outputGenerator.BuildId}/dotnet-build-prompt.md",
+                GitCommit = git.Commit,
+                GitBranch = git.Branch,
+                GitDirty = git.IsDirty
+            };
+
+            LogManifestWriter.AppendEntry(logsRoot, entry);
+        }
+        catch
+        {
+            // Manifest updates are best effort
+        }
     }
 
     private void WriteConsoleOutput()
