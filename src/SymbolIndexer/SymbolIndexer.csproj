@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <AssemblyName>dotnet-logs</AssemblyName>
+    <RootNamespace>DotnetLogs</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

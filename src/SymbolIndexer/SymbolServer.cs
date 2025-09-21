@@ -15,12 +15,18 @@ public class SymbolServer : IDisposable
     private readonly ILogger<SymbolServer> _logger;
     private readonly CancellationTokenSource _cancellationTokenSource = new();
     private readonly List<Task> _connectionTasks = new();
+    private readonly object _connectionLock = new();
+    private int _permissionDeniedCount;
+    private readonly Action? _onActivity;
+    private readonly Action? _onShutdown;
 
-    public SymbolServer(string pipeName, ISymbolIndexer symbolIndexer, ILogger<SymbolServer> logger)
+    public SymbolServer(string pipeName, ISymbolIndexer symbolIndexer, ILogger<SymbolServer> logger, Action? onActivity = null, Action? onShutdown = null)
     {
         _pipeName = pipeName;
         _symbolIndexer = symbolIndexer;
         _logger = logger;
+        _onActivity = onActivity;
+        _onShutdown = onShutdown;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -43,12 +49,19 @@ public class SymbolServer : IDisposable
                 _logger.LogDebug("Waiting for client connection...");
                 await pipeStream.WaitForConnectionAsync(cancellationToken);
                 _logger.LogDebug("Client connected");
+                _onActivity?.Invoke();
 
                 var connectionTask = HandleConnectionAsync(pipeStream, cancellationToken);
-                _connectionTasks.Add(connectionTask);
+                lock (_connectionLock)
+                {
+                    _connectionTasks.Add(connectionTask);
+                }
 
                 // Clean up completed tasks
-                _connectionTasks.RemoveAll(t => t.IsCompleted);
+                lock (_connectionLock)
+                {
+                    _connectionTasks.RemoveAll(t => t.IsCompleted);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -56,6 +69,22 @@ public class SymbolServer : IDisposable
             }
             catch (Exception ex)
             {
+                if (IsPermissionDenied(ex))
+                {
+                    var count = Interlocked.Increment(ref _permissionDeniedCount);
+                    if (count == 1)
+                    {
+                        _logger.LogError(ex, "Permission denied creating pipe server. Named pipes may be disabled in this environment.");
+                    }
+                    else if (count % 10 == 0)
+                    {
+                        _logger.LogWarning("Permission denied creating pipe server. Retried {Count} times.", count);
+                    }
+
+                    await Task.Delay(1000, cancellationToken);
+                    continue;
+                }
+
                 _logger.LogError(ex, "Error creating pipe server");
                 await Task.Delay(1000, cancellationToken);
             }
@@ -81,6 +110,7 @@ public class SymbolServer : IDisposable
                         var request = await SymbolProtocol.ReadRequestAsync(pipeStream, cancellationToken);
                         _logger.LogDebug("Received request: {Type} for {File}:{Line}:{Column}", 
                             request.Type, request.File, request.Line, request.Column);
+                        _onActivity?.Invoke();
 
                         SymbolQueryResponse response;
                         
@@ -89,6 +119,7 @@ public class SymbolServer : IDisposable
                             response = new SymbolQueryResponse([]);
                             await SymbolProtocol.WriteResponseAsync(pipeStream, response, cancellationToken);
                             Stop();
+                            _onShutdown?.Invoke();
                             break;
                         }
                         else if (request.Type == "symbols")
@@ -102,6 +133,7 @@ public class SymbolServer : IDisposable
                         }
 
                         await SymbolProtocol.WriteResponseAsync(pipeStream, response, cancellationToken);
+                        _onActivity?.Invoke();
                     }
                     catch (EndOfStreamException)
                     {
@@ -118,7 +150,44 @@ public class SymbolServer : IDisposable
 
     public void Dispose()
     {
-        _cancellationTokenSource.Cancel();
-        _cancellationTokenSource.Dispose();
+        try
+        {
+            _cancellationTokenSource.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed
+        }
+
+        try
+        {
+            _cancellationTokenSource.Dispose();
+        }
+        finally
+        {
+            lock (_connectionLock)
+            {
+                foreach (var task in _connectionTasks)
+                {
+                    task.Dispose();
+                }
+                _connectionTasks.Clear();
+            }
+        }
+    }
+
+    private static bool IsPermissionDenied(Exception ex)
+    {
+        if (ex is OperationCanceledException)
+        {
+            return false;
+        }
+
+        if (ex is System.Net.Sockets.SocketException socketEx)
+        {
+            return socketEx.SocketErrorCode == System.Net.Sockets.SocketError.AccessDenied;
+        }
+
+        return ex.InnerException != null && IsPermissionDenied(ex.InnerException);
     }
 }

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace SymbolIndexer;
 
@@ -12,22 +13,34 @@ public class SymbolIndexerService : BackgroundService
     private readonly ISymbolIndexer _symbolIndexer;
     private readonly IPidFileManager _pidFileManager;
     private readonly ILogger<SymbolIndexerService> _logger;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly SymbolIndexerOptions _options;
+    private readonly object _activityLock = new();
     private SymbolPidFile? _pidFile;
     private SymbolServer? _symbolServer;
     private FileSystemWatcher? _fileWatcher;
+    private DateTime _lastActivityUtc = DateTime.UtcNow;
 
     public SymbolIndexerService(
         ISymbolIndexer symbolIndexer, 
         IPidFileManager pidFileManager,
-        ILogger<SymbolIndexerService> logger)
+        ILogger<SymbolIndexerService> logger,
+        ILoggerFactory loggerFactory,
+        IHostApplicationLifetime lifetime,
+        IOptions<SymbolIndexerOptions> options)
     {
         _symbolIndexer = symbolIndexer;
         _pidFileManager = pidFileManager;
         _logger = logger;
+        _loggerFactory = loggerFactory;
+        _lifetime = lifetime;
+        _options = options.Value;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        Task? monitorTask = null;
         try
         {
             // Check if another instance is already running
@@ -52,17 +65,22 @@ public class SymbolIndexerService : BackgroundService
 
             // Build initial index
             await _symbolIndexer.RebuildIndexAsync(projectPath);
+            MarkActivity();
 
             // Set up file system watcher
             SetupFileWatcher(projectPath);
 
             // Start the symbol server
-            var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-            var serverLogger = loggerFactory.CreateLogger<SymbolServer>();
-            _symbolServer = new SymbolServer(pipeName, _symbolIndexer, serverLogger);
+            var serverLogger = _loggerFactory.CreateLogger<SymbolServer>();
+            _symbolServer = new SymbolServer(pipeName, _symbolIndexer, serverLogger, MarkActivity, OnShutdownRequested);
 
             _logger.LogInformation("Starting symbol server on pipe: {PipeName}", pipeName);
+            monitorTask = MonitorIdleAsync(stoppingToken);
             await _symbolServer.StartAsync(stoppingToken);
+            if (monitorTask != null)
+            {
+                await monitorTask;
+            }
         }
         catch (Exception ex)
         {
@@ -97,6 +115,7 @@ public class SymbolIndexerService : BackgroundService
         if (e.FullPath.Contains("bin") || e.FullPath.Contains("obj"))
             return;
 
+        MarkActivity();
         _logger.LogDebug("File changed: {FilePath}", e.FullPath);
         
         // Debounce rapid changes
@@ -104,17 +123,79 @@ public class SymbolIndexerService : BackgroundService
         await _symbolIndexer.UpdateFileAsync(e.FullPath);
     }
 
-    private void OnFileDeleted(object sender, FileSystemEventArgs e)
+    private async void OnFileDeleted(object sender, FileSystemEventArgs e)
     {
+        MarkActivity();
         _logger.LogDebug("File deleted: {FilePath}", e.FullPath);
-        // TODO: Remove symbols from deleted files from index
+
+        if (e.FullPath.Contains("bin") || e.FullPath.Contains("obj"))
+            return;
+
+        await _symbolIndexer.RemoveFileAsync(e.FullPath);
     }
 
     private async void OnFileRenamed(object sender, RenamedEventArgs e)
     {
+        MarkActivity();
         _logger.LogDebug("File renamed: {OldPath} -> {NewPath}", e.OldFullPath, e.FullPath);
-        // TODO: Handle file renames in index
+
+        if (e.FullPath.Contains("bin") || e.FullPath.Contains("obj"))
+            return;
+
+        // Remove old file from index and add new file
+        await _symbolIndexer.RemoveFileAsync(e.OldFullPath);
         await _symbolIndexer.UpdateFileAsync(e.FullPath);
+    }
+
+    private void OnShutdownRequested()
+    {
+        _logger.LogInformation("Shutdown requested via RPC");
+        _lifetime.StopApplication();
+    }
+
+    private void MarkActivity()
+    {
+        lock (_activityLock)
+        {
+            _lastActivityUtc = DateTime.UtcNow;
+        }
+    }
+
+    private DateTime GetLastActivity()
+    {
+        lock (_activityLock)
+        {
+            return _lastActivityUtc;
+        }
+    }
+
+    private async Task MonitorIdleAsync(CancellationToken stoppingToken)
+    {
+        var idleTimeout = _options.IdleTimeout;
+        if (idleTimeout <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                var idleDuration = DateTime.UtcNow - GetLastActivity();
+                if (idleDuration >= idleTimeout)
+                {
+                    _logger.LogInformation("Idle timeout of {IdleTimeout} reached (idle for {IdleDuration}), shutting down", idleTimeout, idleDuration);
+                    _symbolServer?.Stop();
+                    _lifetime.StopApplication();
+                    break;
+                }
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // Host stopping; nothing to do
+        }
     }
 
     private void Cleanup()

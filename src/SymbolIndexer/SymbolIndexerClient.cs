@@ -31,7 +31,7 @@ public class SymbolIndexerClient
 
         try
         {
-            using var client = new NamedPipeClientStream(".", pidFile.PipeName, PipeDirection.InOut);
+            using var client = new NamedPipeClientStream(".", pidFile.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             await client.ConnectAsync(5000); // 5 second timeout
 
             var request = new SymbolQueryRequest(
@@ -52,18 +52,17 @@ public class SymbolIndexerClient
         }
     }
 
-    public async Task ShutdownAsync()
+    public async Task<bool> ShutdownAsync()
     {
         var pidFile = _pidFileManager.FindRunningServer();
         if (pidFile == null)
         {
-            Console.WriteLine("No running symbol indexer found");
-            return;
+            return false;
         }
 
         try
         {
-            using var client = new NamedPipeClientStream(".", pidFile.PipeName, PipeDirection.InOut);
+            using var client = new NamedPipeClientStream(".", pidFile.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             await client.ConnectAsync(5000); // 5 second timeout
 
             var request = new SymbolQueryRequest(
@@ -75,12 +74,12 @@ public class SymbolIndexerClient
 
             await SymbolProtocol.WriteRequestAsync(client, request, CancellationToken.None);
 
-            Console.WriteLine($"Successfully shut down symbol indexer (PID: {pidFile.ProcessId})");
+            return true;
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error shutting down server");
-            Console.WriteLine($"Error shutting down server: {ex.Message}");
+            return false;
         }
     }
 
